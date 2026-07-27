@@ -150,7 +150,7 @@ a{color:var(--acc)}
 else beats. Every model repositions horizontally by how fast it decodes on the selected build, and
 drops into the zero column if it will not load. Click any model for its own price-vs-speed staircase
 on the right. Hardware is filtered to upgrades that actually move quality or speed. Data 26 Jul 2026 ·
-prices AUD.</p>
+prices sourced in AUD, switchable to USD.</p>
 
 <div class="eq">
 <b>t/token</b> = bytes_read × [ f / BW<sub>fast</sub> + (1−f) / BW<sub>slow</sub> ] + overhead &nbsp;&nbsp;·&nbsp;&nbsp;
@@ -164,7 +164,7 @@ speedup over pure-CPU experts ≈ <b>1/(1−f)</b>
     <label>graphics card<select id="cfgGpu"></select></label>
     <label>second card<select id="cfgSpare"></select></label>
     <label>system RAM<input type="number" id="cfgRam" min="8" max="2048" step="8"></label>
-    <label>channels<select id="cfgCh"><option>2</option><option>4</option></select></label>
+    <label>CPU platform<select id="cfgCpu"></select></label>
     <label>RAM speed MT/s<input type="number" id="cfgMts" min="2000" max="9000" step="100"></label>
     <label>OS<select id="cfgOs">
       <option value="win">Windows</option><option value="linux">Linux</option>
@@ -241,6 +241,10 @@ reason. Build your own in the last slot.</p>
     <select id="cfgCtx" style="font:inherit;font-size:12px;padding:3px 6px;border-radius:var(--radius);
       border:1px solid var(--line2);background:var(--bg);color:var(--ink)"></select>
     <span id="ctxNote" style="color:var(--ink3)"></span>
+  </span>
+  <span class="grp"><b>currency</b>
+    <label class="tog"><input type="radio" name="cur" value="aud" checked> AUD</label>
+    <label class="tog"><input type="radio" name="cur" value="usd"> USD</label>
   </span>
   <span class="grp"><b>quality metric</b>
     <label class="tog"><input type="radio" name="met" value="elo" checked> Arena text</label>
@@ -320,6 +324,11 @@ decode only 6.5–10.5%. Buy a bandwidth number and you may receive a fifth of i
 //  redistribution cannot be published by accident.
 // ===========================================================================
 const SRC = {
+  fx: {name:'AUD\u2192USD conversion rate 0.6973', asOf:'2026-07-24', pub:true,
+    licence:'Exchange rates are facts; rate is a dated constant, not a live feed',
+    url:'', note:'Held as a constant so the page works with no network. AU retail '+
+      'prices include 10% GST while US list prices normally exclude sales tax, so a '+
+      'converted figure sits above the US sticker you would compare it against.'},
   prices: {name:'Australian retail prices', asOf:'2026-07-26', pub:true,
     licence:'observed retail listings; facts, not a licensed dataset',
     url:'', note:'inc GST. DRAM moved ~5x in 12 months -- re-check before deciding.'},
@@ -343,12 +352,25 @@ const PR = {gpu4060ti:400, gpu5060ti:799, gpu5070ti:1400, gpu5080:1660, gpu5090:
 // GPU catalogue. bw is EFFECTIVE GB/s during batch-1 MoE decode, back-calculated
 // from published benchmarks -- never a spec sheet. nom is kept only so the UI can
 // show how little of the nominal figure survives.
+// Effective figures for cards with no benchmark of their own are estimated from
+// nominal bandwidth at the conversion rate this table already exhibits: ~55% for
+// consumer cards, ~45% for RTX PRO / workstation parts, which clock lower. Every
+// such entry is flagged est:1 and renders "(est)" in the picker. Checked against
+// the two anchors that do exist, the rule lands within ~12% (5080) and ~2%
+// (5090). pest:1 marks a price that is an estimate rather than a sighted listing
+// -- used and grey-market cards especially, which have no retail price at all.
 const GPUC = {
   // 4060 Ti at 59% of nominal matches the 5060 Ti exactly, so it is left alone.
   // LocalScore back-calculates to 237-252 GB/s (82-88% of nominal) for the 16GB
   // variant, which no card in this table approaches -- another reason to treat
   // that dataset as a cross-check, not a calibration source.
   '4060ti': {n:'RTX 4060 Ti 8GB',  vram:8,  bw:170, nom:288,  p:PR.gpu4060ti, est:1},
+  '4060ti16':{n:'RTX 4060 Ti 16GB',vram:16, bw:170, nom:288,  p:650,   est:1, pest:1},
+  '3090':   {n:'RTX 3090 24GB',    vram:24, bw:515, nom:936,  p:1250,  est:1, pest:1, used:1},
+  '4070tis':{n:'RTX 4070 Ti Super',vram:16, bw:370, nom:672,  p:1250,  est:1, pest:1},
+  '4080s':  {n:'RTX 4080 Super',   vram:16, bw:405, nom:736,  p:1650,  est:1, pest:1},
+  '4090':   {n:'RTX 4090 24GB',    vram:24, bw:554, nom:1008, p:3500,  est:1, pest:1, used:1},
+  '5070':   {n:'RTX 5070 12GB',    vram:12, bw:370, nom:672,  p:1050,  est:1, pest:1},
   '5060ti': {n:'RTX 5060 Ti 16GB', vram:16, bw:265, nom:448,  p:PR.gpu5060ti},
   // 5070 Ti: still an estimate, but no longer an outlier. At bw 300 it converted
   // 33% of nominal while every sibling here converts 38-59%, which is not a
@@ -360,12 +382,29 @@ const GPUC = {
   '5070ti': {n:'RTX 5070 Ti 16GB', vram:16, bw:439, nom:896,  p:PR.gpu5070ti, est:1},
   '5080':   {n:'RTX 5080 16GB',    vram:16, bw:470, nom:960,  p:PR.gpu5080},
   '5090':   {n:'RTX 5090 32GB',    vram:32, bw:1000,nom:1792, p:PR.gpu5090},
-  'pro6000':{n:'RTX PRO 6000 96GB',vram:96, bw:674, nom:1792, p:PR.gpuPro}
+  'pro6000':{n:'RTX PRO 6000 96GB',vram:96, bw:674, nom:1792, p:PR.gpuPro},
+  'pro4000':{n:'RTX PRO 4000 24GB',vram:24, bw:302, nom:672,  p:2400,  est:1, pest:1},
+  'pro4500':{n:'RTX PRO 4500 32GB',vram:32, bw:403, nom:896,  p:4600,  est:1, pest:1},
+  'pro5000':{n:'RTX PRO 5000 48GB',vram:48, bw:605, nom:1344, p:8500,  est:1, pest:1},
+  '6000ada':{n:'RTX 6000 Ada 48GB',vram:48, bw:432, nom:960,  p:11000, est:1, pest:1},
+  'a6000':  {n:'RTX A6000 48GB',   vram:48, bw:346, nom:768,  p:6000,  est:1, pest:1, used:1}
 };
 // Buildable arrangements as {model:count}; priced against what you already own.
+// Arrangements offered as upgrades. Kept to combinations someone would actually
+// build: one of a card, pairs, and the few high-count configurations that only
+// make sense on a workstation board. buildHW() filters these against what you
+// already own and against the slot count of your platform, and drops any set that
+// a strictly larger set matches on price.
 const GSETS = [
   {'5080':1},{'5080':2},{'5080':1,'4060ti':1},{'5080':1,'5060ti':1},
   {'5090':1},{'5090':1,'5080':1},{'5090':2},{'5090':4},
+  {'3090':1},{'3090':2},{'3090':4},
+  {'4090':1},{'4090':2},{'4090':4},
+  {'4080s':1},{'4080s':2},{'4070tis':1},{'4070tis':2},{'4060ti16':1},{'4060ti16':2},
+  {'5070':1},{'5070':2},{'5060ti':1},{'5060ti':2},{'5070ti':1},{'5070ti':2},
+  {'pro4000':1},{'pro4000':2},{'pro4500':1},{'pro4500':2},
+  {'pro5000':1},{'pro5000':2},{'pro5000':4},
+  {'6000ada':1},{'6000ada':2},{'a6000':1},{'a6000':2},{'a6000':4},
   {'pro6000':1},{'pro6000':1,'5080':1},{'pro6000':2},{'pro6000':4},{'pro6000':8}
 ];
 const TPF = {2:1.60, 4:2.40, 8:3.00};   // tensor-parallel gain, dense + identical cards only
@@ -374,7 +413,7 @@ const TPF = {2:1.60, 4:2.40, 8:3.00};   // tensor-parallel gain, dense + identic
 // figure, matched to the fixed builds above; null means derive it from the RAM
 // you declared in "your system". slots caps how many cards the board can feed.
 const CPLAT = {
-  d: {n:'your desktop board',    slots:2, base:0,                     ch:2,  bw:null, rdimm:0},
+  d: {n:'your own board',        slots:0, base:0,                     ch:0,  bw:null, rdimm:0},
   t: {n:'Threadripper PRO 9000', slots:4, base:PR.trCpu+PR.trMobo,    ch:8,  bw:190,  rdimm:1},
   x: {n:'Xeon 6 12-channel',     slots:8, base:PR.xeonCpu+PR.xeonMobo, ch:12, bw:150,  rdimm:1}
 };
@@ -414,7 +453,21 @@ function gpuSet(c, owned){
           tpSet: (ks.length>1 && tpSet) ? tpSet : null};
 }
 
-const DEFAULT_RIG = {gpu:'5080', spare:'', ramGB:96, ramCh:2, ramMTs:6000, os:'win'};
+// Desktop CPU platforms. lanes is CPU-attached PCIe lanes, which is what decides
+// whether a second card runs at x8 or drops to x4 off the chipset; slots is how
+// many cards the platform can realistically feed. ch fixes the memory channel
+// count, so it is derived from the platform rather than typed in by hand.
+const CPUP = {
+  arrow: {n:'Intel Core Ultra 200S \u2014 Arrow Lake, LGA1851', ch:2, lanes:20,  slots:2},
+  raptor:{n:'Intel Core 12\u201314th gen \u2014 LGA1700',      ch:2, lanes:20,  slots:2},
+  am5:   {n:'AMD Ryzen 7000/9000 \u2014 AM5',                   ch:2, lanes:24,  slots:2},
+  trx50: {n:'AMD Threadripper 7000/9000 \u2014 TRX50',          ch:4, lanes:48,  slots:3},
+  wrx90: {n:'AMD Threadripper PRO \u2014 WRX90',                ch:8, lanes:128, slots:4},
+  xeonw: {n:'Intel Xeon W-2500/3500 \u2014 W790/W890',          ch:8, lanes:112, slots:4}
+};
+const myCpu = () => CPUP[RIG.cpu] || CPUP.arrow;
+
+const DEFAULT_RIG = {gpu:'5080', spare:'', cpu:'arrow', ramGB:96, ramCh:2, ramMTs:6000, os:'win'};
 const OSRES = {win:20, linux:8, mac:14};
 // VRAM the desktop itself holds before any model loads. Windows on a 4K display
 // idles around 3 GB; a bare Linux console needs almost nothing.
@@ -460,7 +513,21 @@ const ramBW = (ch,mts)=>Math.round(ch*mts*8/1000*(ch<=2?0.875:0.72));
 // back-calculated from token benchmarks -- never a streaming roofline and
 // never a spec sheet. The two differ by roughly a factor of two.
 
-const AUD = n => n ? '$'+n.toLocaleString() : 'owned';
+// Prices are held in AUD because that is where they were sourced. The rate is a
+// dated constant, not a live lookup -- the page must keep working with no network.
+// Note AU retail includes 10% GST while US list prices normally exclude sales
+// tax, so a converted figure sits above the US sticker you would compare it to.
+const FX = {aud:{sym:'A$', rate:1, n:'AUD'}, usd:{sym:'US$', rate:0.6973, n:'USD'}};
+let CUR = (function(){ try{ return localStorage.getItem('cur')==='usd'?'usd':'aud'; }
+                       catch(e){ return 'aud'; } })();
+const cx  = n => n*FX[CUR].rate;
+const AUD = n => n ? FX[CUR].sym+Math.round(cx(n)).toLocaleString() : 'owned';
+// What is uncertain about a card, said in the picker rather than buried.
+const gpuFlag = k => {const g=GPUC[k]; if(!g) return '';
+  const f=[]; if(g.est) f.push('bw est'); if(g.pest) f.push('price est');
+  if(g.used) f.push('used market');
+  return f.length?' \u2014 '+f.join(', '):'';};
+const kAUD= n => (n>=1000? FX[CUR].sym+Math.round(cx(n)/1000)+'k' : FX[CUR].sym+Math.round(cx(n)));
 let HW=[];
 
 function buildHW(){
@@ -505,7 +572,7 @@ function buildHW(){
      d:(RIG.ramGB*2)+'GB, fills the slots and drops a speed grade'}];
 
   const PLAT=[
-   {k:'d', n:'', slots:2, res:res, base:0, rams:dRam},
+   {k:'d', n:'', slots:myCpu().slots, res:res, base:0, rams:dRam},
    // The two server memory figures below are MODELLED, not measured. No published
    // llama.cpp MoE-offload token benchmark for a Threadripper PRO 9000 or a Xeon 6
    // was found (searched 27 Jul 2026); what exists is dense-model and streaming
@@ -575,11 +642,16 @@ function buildHW(){
   HW.forEach(h=>h.priceTxt=AUD(h.price));
 }
 
+// CPLAT.d inherits the slot count of the platform declared in "your system", so
+// a Threadripper owner is not told their own board has two slots.
+const cplatSlots = k => (k==='d'||!CPLAT[k]) ? myCpu().slots : CPLAT[k].slots;
+
 // One machine assembled from the custom-build card. Priced the same way as every
 // other build: you only pay for cards you do not already own.
 function customHW(owned,res){
   const pl=CPLAT[CUSTOM.plat]||CPLAT.d;
   const c=customCards();
+  const plName = CUSTOM.plat==='d' ? myCpu().n.split(' \u2014 ')[0] : pl.n;
   const g=gpuSet(c, owned);
   const ramGB=Math.max(16, CUSTOM.ramGB|0||128);
   // Server memory is RDIMM and priced per GB from the fixed builds above.
@@ -589,7 +661,7 @@ function customHW(owned,res){
                         : Math.round(Math.max(0,ramGB-RIG.ramGB)*PR.ramPerGB);
   const bw = pl.bw || Math.round(ramBW(RIG.ramCh,RIG.ramMTs)*(ramGB>RIG.ramGB?0.83:1));
   return {id:'custom', name:'Custom build',
-    meta:g.n+' \u00b7 '+ramGB+'GB \u00b7 '+pl.n+(g.slots>1?' \u00b7 layer-split':''),
+    meta:g.n+' \u00b7 '+ramGB+'GB \u00b7 '+plName+(g.slots>1?' \u00b7 layer-split':''),
     vram:g.vram, ram:ramGB, bwFast:g.bw, bwSlow:bw, res:res, gpus:g.slots, plat:CUSTOM.plat,
     alt:g.alt, tp:g.tp, tpSet:g.tpSet, custom:1,
     price:pl.base+g.p+ramP, ovh:.0012};
@@ -599,7 +671,7 @@ function customHW(owned,res){
 // chosen platform actually has. Card A is filled first, so raising the platform's
 // slot count never silently reorders what you asked for.
 function customCards(){
-  const slots=(CPLAT[CUSTOM.plat]||CPLAT.d).slots, c={};
+  const slots=cplatSlots(CUSTOM.plat), c={};
   let used=0;
   const put=(k,n)=>{ if(!k||!GPUC[k]) return;
     const take=Math.max(0,Math.min(n|0, slots-used)); if(take){ c[k]=(c[k]||0)+take; used+=take; } };
@@ -1076,7 +1148,7 @@ function frontier(budget){
 
 function budgetView(){
   const bud=+$('bud').value;
-  $('budOut').textContent=AUD(bud)==='owned'?'$0':AUD(bud);
+  $('budOut').textContent=bud?AUD(bud):FX[CUR].sym+'0';
   const F=frontier(bud);
   if(!F.length){$('paretoOut').innerHTML=
     `<div class="panel"><p class="ph">Nothing new at this budget</p>
@@ -1231,8 +1303,8 @@ function drawPath(){
     s+=`<text class="ax" x="${PP.l-8}" y="${py(v)+4}" text-anchor="end">${v.toFixed(0)}</text>`;});
   [0,.5,1].forEach(f=>{
     const v=maxP*f;
-    s+=`<text class="ax" x="${px(v)}" y="${PH-PP.b+18}" text-anchor="middle">${v>=1000?'$'+Math.round(v/1000)+'k':'$'+Math.round(v)}</text>`;});
-  s+=`<text class="axl" x="${PW/2}" y="${PH-PP.b+40}" text-anchor="middle">upgrade cost — AUD</text>`;
+    s+=`<text class="ax" x="${px(v)}" y="${PH-PP.b+18}" text-anchor="middle">${kAUD(v)}</text>`;});
+  s+=`<text class="axl" x="${PW/2}" y="${PH-PP.b+40}" text-anchor="middle">upgrade cost — ${FX[CUR].n}</text>`;
   s+=`<text class="axl" transform="translate(13,${PH/2}) rotate(-90)" text-anchor="middle">decode speed — tokens/sec</text>`;
   // 15 t/s usability floor
   s+=`<line x1="${PP.l}" y1="${py(15)}" x2="${PW-PP.r}" y2="${py(15)}" stroke="var(--cpu)" stroke-width="1" stroke-dasharray="4 3" opacity=".7"/>`;
@@ -1362,10 +1434,15 @@ function bottlenecks(m, hw, r){
       : 'Offloaded experts are COMPUTED on the CPU, not streamed to the GPU, so only activations '+
         'cross \u2014 a few KB per layer. This is why llama.cpp --n-cpu-moe beats a UVA weight-streaming '+
         'scheme by roughly an order of magnitude.');
-  else if(plat==='d') add('PCIe','amber', gpus+' cards on a consumer board',
-    'Arrow Lake exposes 20 CPU lanes, so a second card runs at x8 or drops to x4 off the chipset. '+
-    'Layer-split decode passes only activations, so batch-1 speed barely notices \u2014 but model load '+
-    'and prefill scale with the link, and tensor parallelism would be crippled by it.');
+  else if(plat==='d'){
+    const cp=myCpu(), per=Math.floor(cp.lanes/Math.max(1,gpus));
+    const wide=per>=16;
+    add('PCIe', wide?'green':'amber', gpus+' cards \u00b7 '+cp.lanes+' CPU lanes',
+      cp.n+' exposes '+cp.lanes+' CPU lanes, so '+gpus+' cards get about x'+
+      (per>=16?16:per>=8?8:4)+' each'+(wide?'':' or drop to x4 off the chipset')+'. '+
+      'Layer-split decode passes only activations, so batch-1 speed barely notices \u2014 but model '+
+      'load and prefill scale with the link, and tensor parallelism would be crippled by it.');
+  }
   else add('PCIe','green', gpus+' cards on a workstation board',
     'A Threadripper or Xeon platform has enough lanes to run every card at x16.');
 
@@ -1441,7 +1518,7 @@ function detail(){
       <div><div class="l">decode</div><div class="v">${r.tps.toFixed(1)} <span style="font-size:12px;font-weight:400">tok/s</span></div></div>
       <div><div class="l">in fast memory</div><div class="v">${(r.f*100).toFixed(0)}%</div></div>
       <div><div class="l">${MT().short}</div><div class="v">${qv(m)!=null?MT().fmt(qv(m)):'\u2014'}</div></div>
-      <div><div class="l">machine cost</div><div class="v">${hw.price?'$'+hw.price.toLocaleString():'owned'}</div></div>
+      <div><div class="l">machine cost</div><div class="v">${hw.price?AUD(hw.price):'owned'}</div></div>
     </div>
     ${bnHTML(m,hw,r)}`;
 }
@@ -1569,14 +1646,24 @@ document.querySelectorAll('input[name=mode]').forEach(r=>r.onchange=e=>{
   render();});
 $('bud').oninput=()=>budgetView();
 
+// Currency is a display transform only: every price stays stored in AUD, so
+// switching cannot drift the underlying data.
+document.querySelectorAll('input[name=cur]').forEach(r=>{
+  if(r.value===CUR) r.checked=true;
+  r.onchange=e=>{ CUR=e.target.value;
+    try{localStorage.setItem('cur',CUR);}catch(err){}
+    buildHW(); customSummary(); render(); };});
+
 // ---------- your-system panel ----------
 function cfgFill(){
   const opts=(sel,blank)=>(blank?'<option value="">none</option>':'')+
     Object.keys(GPUC).map(k=>'<option value="'+k+'"'+(k===sel?' selected':'')+'>'+
-      GPUC[k].n+(GPUC[k].est?' (est)':'')+'</option>').join('');
+      GPUC[k].n+gpuFlag(k)+'</option>').join('');
   $('cfgGpu').innerHTML=opts(RIG.gpu,false);
   $('cfgSpare').innerHTML=opts(RIG.spare,true);
-  $('cfgRam').value=RIG.ramGB; $('cfgCh').value=RIG.ramCh;
+  $('cfgCpu').innerHTML=Object.keys(CPUP).map(k=>'<option value="'+k+'"'+
+    (k===RIG.cpu?' selected':'')+'>'+CPUP[k].n+'</option>').join('');
+  $('cfgRam').value=RIG.ramGB;
   $('cfgMts').value=RIG.ramMTs; $('cfgOs').value=RIG.os;
   cfgSummary();
 }
@@ -1587,13 +1674,17 @@ function cfgSummary(){
     (sp?' + '+sp.n:'')+') at <b>~'+g.bw+' GB/s effective</b> \u2014 '+
     Math.round(g.bw/g.nom*100)+'% of its '+g.nom+' GB/s nominal, because batch-1 MoE decode '+
     'converts only a fraction of any bus. System memory <b>~'+rb+' GB/s effective</b> from '+
-    RIG.ramCh+'\u00d7 DDR5-'+RIG.ramMTs+', with '+(OSRES[RIG.os]||20)+' GB reserved for the OS. '+
+    RIG.ramCh+'\u00d7 DDR5-'+RIG.ramMTs+' on '+myCpu().n+' ('+myCpu().lanes+
+    ' CPU lanes, '+myCpu().slots+' usable card slots), with '+(OSRES[RIG.os]||20)+
+    ' GB reserved for the OS. '+
     (g.est?'<b>This card\u2019s bandwidth is estimated, not calibrated from a benchmark.</b>':'');
 }
 function cfgApply(){
   RIG.gpu=$('cfgGpu').value; RIG.spare=$('cfgSpare').value;
   RIG.ramGB=Math.max(8,+$('cfgRam').value||96);
-  RIG.ramCh=+$('cfgCh').value||2; RIG.ramMTs=+$('cfgMts').value||6000;
+  RIG.cpu=$('cfgCpu').value in CPUP ? $('cfgCpu').value : 'arrow';
+  RIG.ramCh=myCpu().ch;                 // channels are a platform property
+  RIG.ramMTs=+$('cfgMts').value||6000;
   RIG.os=$('cfgOs').value;
   try{localStorage.setItem('rig',JSON.stringify(RIG));}catch(e){}
   buildHW();
@@ -1601,7 +1692,7 @@ function cfgApply(){
   cur=mine?mine.id:HW[0].id;
   cfgSummary(); customSummary(); render();
 }
-['cfgGpu','cfgSpare','cfgRam','cfgCh','cfgMts','cfgOs'].forEach(id=>{
+['cfgGpu','cfgSpare','cfgRam','cfgCpu','cfgMts','cfgOs'].forEach(id=>{
   const el=$(id); if(el) el.onchange=cfgApply;});
 if($('cfgReset')) $('cfgReset').onclick=()=>{
   RIG=Object.assign({},DEFAULT_RIG);
@@ -1618,17 +1709,19 @@ function customFill(){
   const nA=c[CUSTOM.gpu]||0, nB=(CUSTOM.gpu2&&CUSTOM.gpu2!==CUSTOM.gpu)?(c[CUSTOM.gpu2]||0)
             :(CUSTOM.gpu2?Math.max(0,(c[CUSTOM.gpu2]||0)-nA):0);
   const cards=k=>Object.keys(GPUC).map(x=>'<option value="'+x+'"'+(x===k?' selected':'')+'>'+
-    GPUC[x].n+(GPUC[x].est?' (est)':'')+'</option>').join('');
+    GPUC[x].n+gpuFlag(x)+'</option>').join('');
   const counts=(sel,lo,hi)=>{let o='';
     for(let i=lo;i<=hi;i++) o+='<option value="'+i+'"'+(i===sel?' selected':'')+'>'+i+'</option>';
     return o;};
   $('cuPlat').innerHTML=Object.keys(CPLAT).map(k=>'<option value="'+k+'"'+
-    (k===CUSTOM.plat?' selected':'')+'>'+CPLAT[k].n+'</option>').join('');
+    (k===CUSTOM.plat?' selected':'')+'>'+(k==='d'?myCpu().n.split(' — ')[0]+
+      ' ('+myCpu().slots+' slots)':CPLAT[k].n)+'</option>').join('');
   $('cuGpu').innerHTML=cards(CUSTOM.gpu);
-  $('cuN').innerHTML=counts(Math.max(1,nA),1,pl.slots);
+  const cslots=cplatSlots(CUSTOM.plat);
+  $('cuN').innerHTML=counts(Math.max(1,nA),1,cslots);
   $('cuGpu2').innerHTML='<option value="">none</option>'+cards(CUSTOM.gpu2);
   // The second card can only claim slots the first has not taken.
-  $('cuN2').innerHTML=counts(nB,0,Math.max(0,pl.slots-Math.max(1,nA)));
+  $('cuN2').innerHTML=counts(nB,0,Math.max(0,cslots-Math.max(1,nA)));
   $('cuN2').disabled = !CUSTOM.gpu2;
   $('cuRam').value=CUSTOM.ramGB;
   customSummary();
@@ -1656,7 +1749,7 @@ function customSummary(){
     (pl.rdimm?'RDIMM priced at $'+PR.ramPerGBRdimm+'/GB, interpolated from the fixed builds.':'');
 }
 function customApply(){
-  const slots=(CPLAT[$('cuPlat').value]||CPLAT.d).slots;
+  const slots=cplatSlots($('cuPlat').value);
   CUSTOM.plat=$('cuPlat').value;
   CUSTOM.gpu =$('cuGpu').value;
   CUSTOM.n   =Math.max(1,Math.min(+$('cuN').value||1, slots));
@@ -1717,6 +1810,7 @@ function metNote(){
 
 function render(){
   metNote();
+  $('budOut').textContent = (+$('bud').value) ? AUD(+$('bud').value) : FX[CUR].sym+'0';
   if(mode==='hw') hwCards(); else budgetView();
   draw();detail();drawPath();table();}
 provenance();

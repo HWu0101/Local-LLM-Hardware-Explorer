@@ -1,0 +1,3 @@
+# The build writes LF; keep the repo LF so index.html does not churn on every
+# commit from Windows CRLF round-tripping.
+* text=auto eol=lf

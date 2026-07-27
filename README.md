@@ -89,7 +89,14 @@ lens, use AA's own [embed](https://artificialanalysis.ai/embed/llm-leaderboard).
 ## Known limits
 
 - Batch-1, Q4-class quantisation only. Sub-Q4 usually costs more quality than the speed is worth.
-- Prices are AUD retail as dated in the provenance table. DRAM moved roughly 5× in twelve months.
+- Prices are sourced as **AUD retail** and switchable to USD at a dated constant rate (0.6973, 24 Jul
+  2026) so the page works offline. AU retail includes 10% GST while US list prices normally exclude
+  sales tax, so a converted figure sits above the US sticker you would compare it against. DRAM moved
+  roughly 5× in twelve months, so re-check anything that matters.
+- Many cards carry `bw est`, `price est` or `used market` flags in the picker, shown per card. Cards
+  without a published decode benchmark have their effective bandwidth estimated from nominal at the
+  conversion rate the calibrated cards exhibit (~55% consumer, ~45% RTX PRO); that rule lands within
+  ~12% on the two cards where a real measurement exists.
 - Kernel work moves decode benchmarks fast — one RTX PRO 6000 figure gained 43% in five months.
 - Threadripper and Xeon memory figures are **modelled, not measured**: no published llama.cpp
   MoE-offload token benchmark for those platforms could be found as of 27 July 2026.
