@@ -26,7 +26,23 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: huggingface/hub-sync@v0.1.0
+      # hf_token is a required input, so a missing or empty secret fails the job
+      # within seconds and with no useful message. Check it first and say why.
+      - name: Check HF_TOKEN is present
+        run: |
+          if [ -z "${{ secrets.HF_TOKEN }}" ]; then
+            echo "::error::HF_TOKEN secret is empty or not set."
+            echo "Add it at Settings -> Secrets and variables -> Actions -> New repository secret."
+            echo "Name it exactly HF_TOKEN. Create the token at https://huggingface.co/settings/tokens"
+            echo "with WRITE access. If you use a fine-grained token, it must also be granted"
+            echo "write permission on the Space repo itself, not just the account."
+            exit 1
+          fi
+          echo "HF_TOKEN is set (${#HF_TOKEN} characters)."
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+
+      - uses: huggingface/hub-sync@v0.2.1
         with:
           github_repo_id: ${{ github.repository }}
           huggingface_repo_id: HWu0101/Local-LLM-Hardware-Explorer
