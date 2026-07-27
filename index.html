@@ -260,11 +260,7 @@ reason. Build your own in the last slot.</p>
 <h2>All models on the selected machine</h2>
 <div style="overflow-x:auto">
 <table id="tbl">
-<thead><tr>
-<th data-k="name">Model</th><th data-k="total">Total B</th><th data-k="active">Active B</th>
-<th data-k="gb">Q4 GB</th><th data-k="elo">Arena text</th><th data-k="wd">WebDev</th><th data-k="ag">Agent</th><th data-k="tps">tok/s</th>
-<th data-k="f">In VRAM</th><th data-k="fit">Status</th>
-</tr></thead><tbody></tbody></table>
+<thead></thead><tbody></tbody></table>
 </div>
 
 <h2>How to read this</h2>
@@ -903,13 +899,13 @@ const sx=v=>AX0+(Math.log10(Math.max(v,1))-X0)/(X1-X0)*(W-AX0-P.r);
 // not usable here -- 0, 3 and 7 of 30.
 const METRICS={
   elo: {k:'elo', p:'eloP', label:'quality — Arena text rating (Bradley–Terry, style-controlled)',
-        short:'Arena text', unit:'Arena points',
+        short:'Arena text', col:'Arena', unit:'Arena points',
         lo:1290, hi:1520, ticks:[1300,1350,1400,1450,1500], fmt:v=>v, step:15},
   wd:  {k:'wd',  p:'wdP',  label:'quality — Arena WebDev rating (Bradley–Terry)',
-        short:'Arena webdev', unit:'WebDev points',
+        short:'Arena webdev', col:'WebDev', unit:'WebDev points',
         lo:1210, hi:1700, ticks:[1250,1350,1450,1550,1650], fmt:v=>v, step:25},
   ag:  {k:'ag',  label:'quality — Arena Agent score (standardised, 0 = field average)',
-        short:'Arena agent', unit:'agent points',
+        short:'Arena agent', col:'Agent', unit:'agent points',
         lo:-0.18, hi:0.16, ticks:[-0.15,-0.1,-0.05,0,0.05,0.1,0.15],
         fmt:v=>(v>0?'+':'')+v.toFixed(3), step:0.03}
 };
@@ -1540,26 +1536,57 @@ function bnHTML(m,hw,r){
       <div class="dd">${x.d}</div></div>`).join('')}</div>`;
 }
 
+// Header and body are generated from ONE column list, with the quality columns
+// coming straight off METRICS. They were previously two hand-maintained lists,
+// which is exactly how the public build ended up printing "undefined" under
+// Arena text and shunting every later column one place to the left: its header
+// gained a column that the row template never emitted.
+const MKEYS = () => Object.keys(METRICS);
+function tblCols(){
+  return [['name','Model'],['total','Total B'],['active','Active B'],['gb','Q4 GB']]
+    .concat(MKEYS().map(k=>[k, METRICS[k].col || METRICS[k].short || k]))
+    .concat([['tps','tok/s'],['f','In VRAM'],['fit','Status']]);
+}
+function tableHead(){
+  $('tbl').querySelector('thead').innerHTML='<tr>'+
+    tblCols().map(c=>`<th data-k="${c[0]}">${c[1]}</th>`).join('')+'</tr>';
+  $('tbl').querySelectorAll('th').forEach(h=>h.onclick=()=>{
+    const k=h.dataset.k; sortDir=(k===sortK)?-sortDir:-1; sortK=k; table();});
+}
+
 function table(){
   const hw=HW.find(h=>h.id===cur);
-  const rows=M.map(m=>{const r=calc(m,hw);
-    return {name:m.name,total:m.total,active:m.active,gb:m.gb,elo:m.elo??-1,wd:m.wd??-1,ag:m.ag??-99,
-            tps:r.fit==='none'?-1:r.tps, f:r.fit==='none'?-1:r.f, fit:r.fit, meas:r.measured};});
-  rows.sort((x,y)=>{const a=x[sortK],b=y[sortK];
-    return (typeof a==='string'?a.localeCompare(b):a-b)*sortDir;});
+  const rows=M.map(m=>{
+    const r=calc(m,hw);
+    const o={name:m.name,total:m.total,active:m.active,gb:m.gb,
+             tps:r.fit==='none'?null:r.tps, f:r.fit==='none'?null:r.f,
+             fit:r.fit, meas:r.measured};
+    // Same value the chart plots, proxies included, so the two cannot disagree.
+    for(const k of MKEYS()){
+      const t=METRICS[k];
+      o[k] = m[t.k] ?? (t.p ? m[t.p] : undefined);
+    }
+    return o;});
+  rows.sort((x,y)=>{
+    let a=x[sortK], b=y[sortK];
+    if(typeof a==='string') return a.localeCompare(b)*sortDir;
+    if(a==null) a=-Infinity;                 // unrated sorts to the bottom
+    if(b==null) b=-Infinity;
+    return (a-b)*sortDir;});
   const LAB={fit:'fits',part:'partial',cpu:'mostly CPU',none:"won't load"};
-  $('tbl').querySelector('tbody').innerHTML=rows.map(r=>`<tr data-n="${r.name}">
-    <td class="nm">${r.name}</td><td>${r.total}</td><td>${r.active}</td><td>${r.gb}</td>
-    <td>${r.aa}</td><td>${r.elo<0?'—':r.elo}</td>
-    <td>${r.tps<0?'—':r.tps.toFixed(1)+(r.meas?' ✓':'')}</td>
-    <td>${r.f<0?'—':(r.f*100).toFixed(0)+'%'}</td>
-    <td><span class="tag" style="background:var(--${r.fit});color:var(--panel)">${LAB[r.fit]}</span></td>
-    </tr>`).join('');
+  const cell=(r,k)=>{
+    if(k==='name') return `<td class="nm">${r.name}</td>`;
+    if(k==='fit')  return `<td><span class="tag" style="background:var(--${r.fit});color:var(--panel)">${LAB[r.fit]}</span></td>`;
+    if(k==='tps')  return `<td>${r.tps==null?'—':r.tps.toFixed(1)+(r.meas?' ✓':'')}</td>`;
+    if(k==='f')    return `<td>${r.f==null?'—':(r.f*100).toFixed(0)+'%'}</td>`;
+    if(METRICS[k]) return `<td>${r[k]==null?'—':METRICS[k].fmt(r[k])}</td>`;
+    return `<td>${r[k]}</td>`;
+  };
+  $('tbl').querySelector('tbody').innerHTML=rows.map(r=>`<tr data-n="${r.name}">`+
+    tblCols().map(c=>cell(r,c[0])).join('')+`</tr>`).join('');
   $('tbl').querySelectorAll('tbody tr').forEach(t=>t.onclick=()=>{sel=t.dataset.n;detail();drawPath()});
 }
 
-$('tbl').querySelectorAll('th').forEach(h=>h.onclick=()=>{
-  const k=h.dataset.k; sortDir=(k===sortK)?-sortDir:-1; sortK=k; table();});
 $('showNone').onchange=e=>{showNone=e.target.checked;draw()};
 document.querySelectorAll('input[name=met]').forEach(r=>r.onchange=e=>{
   metric=e.target.value; sortK=metric; render();});
@@ -1814,6 +1841,7 @@ function render(){
   if(mode==='hw') hwCards(); else budgetView();
   draw();detail();drawPath();table();}
 provenance();
+tableHead();
 cfgFill();
 customFill();
 customOpen(CUSTOM.on);
