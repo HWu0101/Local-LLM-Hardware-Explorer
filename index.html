@@ -988,13 +988,18 @@ const CARD_MAX = 11;
 // Speed has to be compared on a fixed model or it is meaningless -- each build's
 // own best model differs, so "108 t/s" and "44 t/s" can describe different work.
 // The reference is whatever your current rig runs best today.
+// On a sparse lens your own rig may run nothing that is rated at all, in which
+// case there is no "best model today" to measure speed against. Fall back to the
+// smallest model so the axis still has a scale, but flag it -- describing that
+// fallback as your best model would be a plain lie.
 function refModel(base){
   const b=bestUsable(base);
-  return b ? b.m : M.slice().sort((x,y)=>x.gb-y.gb)[0];
+  return b ? {m:b.m, fallback:false}
+           : {m:M.slice().sort((x,y)=>x.gb-y.gb)[0], fallback:true};
 }
 function impactList(){
   const base=HW.find(h=>h.mine)||HW[0];
-  const ref=refModel(base);
+  const R0=refModel(base), ref=R0.m;
   const rows=HW.map(h=>{
     const b=bestUsable(h), rr=calc(ref,h);
     return {h:h, best:b, q:b?qv(b.m):-Infinity,
@@ -1040,17 +1045,30 @@ function impactList(){
     const dom=k=>k.h.id!==r.h.id && k.q>=r.q && k.s>=r.s && k.h.price<=r.h.price;
     r.by = keep.filter(dom)[0] || rows.filter(dom)[0];
   }
-  return {keep:keep, drop:drop, base:base, ref:ref, bq:bq, bs:bs};
+  return {keep:keep, drop:drop, base:base, ref:ref, refFallback:R0.fallback, bq:bq, bs:bs};
 }
 
 function card(r,L){
   const h=r.h, b=r.best, chips=[];
   if(h.mine) chips.push('<i>your baseline</i>');
   else {
-    const dq=r.q-L.bq, ds=L.bs>0?r.s/L.bs:0;
-    chips.push(dq>=1  ? '<i class="up">+'+Math.round(dq)+' quality</i>'
-             : dq<=-1 ? '<i class="dn">'+Math.round(dq)+' quality</i>'
-             :          '<i>same quality</i>');
+    const ds=L.bs>0?r.s/L.bs:0;
+    // Quality deltas are only meaningful when BOTH ends are real numbers. If your
+    // rig runs nothing rated on this lens the baseline is -Infinity, and
+    // subtracting it yielded "+Infinity quality" on every card.
+    if(!isFinite(r.q))      chips.push('<i>nothing rated runs</i>');
+    else if(!isFinite(L.bq))chips.push('<i class="up">unlocks '+MT().fmt(r.q)+'</i>');
+    else {
+      // Scale-aware: a third of the metric's own step is the noise floor, and the
+      // precision follows the metric. Hardcoded integers read every agent-lens
+      // delta as "same quality", because that whole scale spans 0.27.
+      const dq=r.q-L.bq, eps=MT().step/3;
+      const t=v=>(v>0?'+':'\u2212')+(MT().step>=1?Math.round(Math.abs(v))
+                                                  :Math.abs(v).toFixed(3));
+      chips.push(dq>=eps  ? '<i class="up">'+t(dq)+' quality</i>'
+               : dq<=-eps ? '<i class="dn">'+t(dq)+' quality</i>'
+               :            '<i>same quality</i>');
+    }
     chips.push(ds>=1.1 ? '<i class="up">'+ds.toFixed(ds<10?1:0)+'\u00d7 faster</i>'
              : ds<=0.9 ? '<i class="dn">'+ds.toFixed(1)+'\u00d7 speed</i>'
              :           '<i>same speed</i>');
@@ -1092,9 +1110,13 @@ function hwCards(){
   }
   const worst=distinct.slice().sort((a,b)=>b.waste-a.waste).slice(0,3);
   const li=r=>{
-    const dq=Math.round(r.q-L.bq), ds=L.bs>0?r.s/L.bs:0;
+    const ds=L.bs>0?r.s/L.bs:0;
+    const dtxt = !isFinite(r.q) ? 'nothing rated runs'
+      : !isFinite(L.bq)         ? 'unlocks '+MT().fmt(r.q)
+      : (()=>{const d=r.q-L.bq;
+              return (d>0?'+':'')+(MT().step>=1?Math.round(d):d.toFixed(3))+' quality';})();
     return `<li><b>${r.h.name}</b> \u00b7 ${r.h.priceTxt} \u00b7 ` +
-      `${dq>0?'+'+dq:dq} quality, ${ds.toFixed(1)}\u00d7 speed vs your rig` +
+      `${dtxt}, ${ds.toFixed(1)}\u00d7 speed vs your rig` +
       (!r.by ? ` \u2014 under the ${MT().step}-point / ${SPEED_STEP}\u00d7 bar`
        : r.waste<=0 ? ` \u2014 no better than ${r.by.h.name} at the same price`
        : ` \u2014 ${AUD(r.waste)} over ${r.by.h.name}, which already matches it on both`)+`</li>`;};
@@ -1103,7 +1125,10 @@ function hwCards(){
   $('hwNote').innerHTML= L.drop.length
     ? `<b>${nMain}</b> build${nMain>1?'s':''} shown beat everything cheaper by at least
        <b>${MT().step} ${MT().unit}</b> of quality or <b>${SPEED_STEP}\u00d7</b>
-       the speed of <b>${L.ref.name}</b>, your rig\u2019s best model today.` +
+       the speed of <b>${L.ref.name}</b>, ${L.refFallback
+         ? 'the smallest model here \u2014 your rig runs nothing rated on this lens, so there is no '+
+           'best model to measure against and quality is shown as an absolute score rather than a gain'
+         : 'your rig\u2019s best model today'}.` +
       (nFam?` A further <b>${nFam}</b> place a whole kind of machine on the map that the
        field-wide comparison hid \u2014 ${FAMS.map(f=>f.long).join(', ')} \u2014 each contributing
        at most its cheapest real step over your rig (<b>entry</b>) and the cheapest build that
