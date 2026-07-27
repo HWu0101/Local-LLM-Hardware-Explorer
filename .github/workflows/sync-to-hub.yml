@@ -1,0 +1,36 @@
+# Mirror this repository into the Hugging Face Space on every push to main.
+#
+# Uses the official huggingface/hub-sync action, which uploads file CONTENTS via
+# the hf CLI rather than doing a git-to-git push. That matters here: the Space was
+# created through the web UI and already carries its own initial commit, so a
+# direct git push would fail on unrelated histories and need --force. File
+# mirroring sidesteps that entirely.
+#
+# The action excludes .github/ and .git/ automatically, so this workflow file does
+# not end up in the Space. Files deleted from this repo are deleted from the Hub.
+#
+# One-time setup: add a WRITE access token from https://huggingface.co/settings/tokens
+# as a repository secret named HF_TOKEN
+# (Settings -> Secrets and variables -> Actions -> New repository secret).
+
+name: Sync to Hugging Face Hub
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:        # lets you trigger a sync by hand from the Actions tab
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: huggingface/hub-sync@v0.1.0
+        with:
+          github_repo_id: ${{ github.repository }}
+          huggingface_repo_id: HWu0101/Local-LLM-Hardware-Explorer
+          # Must be set explicitly — the action defaults to gradio, and this is a
+          # plain static page with no SDK.
+          space_sdk: static
+          hf_token: ${{ secrets.HF_TOKEN }}
