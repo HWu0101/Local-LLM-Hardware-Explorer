@@ -1,6 +1,3 @@
-The webpage is hosted on Huggingface Spaces: 
-https://huggingface.co/spaces/HWu0101/Local-LLM-Hardware-Explorer
-
 ---
 title: Local LLM Hardware Explorer
 emoji: 🖥️
@@ -11,6 +8,9 @@ app_file: index.html
 pinned: false
 license: mit
 ---
+
+The webpage is hosted on Huggingface Spaces: 
+https://huggingface.co/spaces/HWu0101/Local-LLM-Hardware-Explorer
 
 # Local LLM Hardware Explorer
 
