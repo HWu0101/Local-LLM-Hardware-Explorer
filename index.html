@@ -713,17 +713,18 @@
     <h2>Your system</h2>
     <div class="panel" style="margin-top:0">
       <div class="cfg">
-        <label>graphics card<select id="cfgGpu"></select></label>
-        <label>second card<select id="cfgSpare"></select></label>
-        <label>system RAM<input type="number" id="cfgRam" min="8" max="2048" step="8"></label>
-        <label>CPU platform<select id="cfgCpu"></select></label>
-        <label id="numaLbl" style="display:none">NUMA policy<select id="cfgNuma"></select></label>
-        <label>RAM speed MT/s<input type="number" id="cfgMts" min="2000" max="9000" step="100"></label>
-        <label>OS<select id="cfgOs">
-            <option value="win">Windows</option>
-            <option value="linux">Linux</option>
-            <option value="mac">macOS</option>
+        <label>system type<select id="cfgKind">
+            <option value="std">standard — graphics card + system RAM</option>
+            <option value="uni">unified memory — one pool</option>
           </select></label>
+        <label id="uniLbl" style="display:none">machine<select id="cfgUni"></select></label>
+        <label id="uniNLbl" style="display:none">how many<select id="cfgUniN"></select></label>
+        <label id="lblGpu">graphics card<select id="cfgGpu"></select></label>
+        <label id="lblSpare">second card<select id="cfgSpare"></select></label>
+        <label id="lblRam">system RAM<input type="number" id="cfgRam" min="8" max="2048" step="8"></label>
+        <label id="lblCpu">CPU platform<select id="cfgCpu"></select></label>
+        <label id="numaLbl" style="display:none">NUMA policy<select id="cfgNuma"></select></label>
+        <label id="lblMts">RAM speed MT/s<input type="number" id="cfgMts" min="2000" max="9000" step="100"></label>
         <button id="cfgReset" style="padding:6px 12px">reset</button>
       </div>
       <p class="pm" id="cfgOut" style="margin:12px 0 0"></p>
@@ -744,13 +745,19 @@
       <p class="pm" id="hwNote" style="margin:-12px 0 14px"></p>
       <div class="panel" id="customPanel" style="display:none;margin:0 0 22px">
         <div class="cfg">
-          <label>platform<select id="cuPlat"></select></label>
-        <label id="cuNumaLbl" style="display:none">NUMA policy<select id="cuNuma"></select></label>
-          <label>graphics card<select id="cuGpu"></select></label>
-          <label>how many<select id="cuN"></select></label>
-          <label>second card<select id="cuGpu2"></select></label>
-          <label>how many<select id="cuN2"></select></label>
-          <label>system RAM GB<input type="number" id="cuRam" min="16" max="2048" step="16"></label>
+          <label>system type<select id="cuKind">
+              <option value="std">standard — graphics cards + system RAM</option>
+              <option value="uni">unified memory — one pool</option>
+            </select></label>
+          <label id="cuUniLbl" style="display:none">machine<select id="cuUni"></select></label>
+          <label id="cuUniNLbl" style="display:none">how many<select id="cuUniN"></select></label>
+          <label id="cuPlatLbl">platform<select id="cuPlat"></select></label>
+          <label id="cuNumaLbl" style="display:none">NUMA policy<select id="cuNuma"></select></label>
+          <label id="cuGpuLbl">graphics card<select id="cuGpu"></select></label>
+          <label id="cuNLbl">how many<select id="cuN"></select></label>
+          <label id="cuGpu2Lbl">second card<select id="cuGpu2"></select></label>
+          <label id="cuN2Lbl">how many<select id="cuN2"></select></label>
+          <label id="cuRamLbl">system RAM GB<input type="number" id="cuRam" min="16" max="2048" step="16"></label>
           <button id="cuClose" style="padding:6px 12px">remove</button>
         </div>
         <p class="pm" id="cuOut" style="margin:12px 0 0"></p>
@@ -1098,7 +1105,8 @@
       if (pl.cpu) return numaBW(CPUP[pl.cpu], CUSTOM.numa || 'unknown').bw;
       return pl.bw;
     }
-    const DEFAULT_CUSTOM = { on: 0, plat: 't', gpu: '5090', n: 2, gpu2: '', n2: 1, ramGB: 256, numa: 'distribute' };
+    const DEFAULT_CUSTOM = { on: 0, plat: 't', gpu: '5090', n: 2, gpu2: '', n2: 1, ramGB: 256,
+                             numa: 'distribute', kind: 'std', uni: 'spark', uniN: 2 };
     let CUSTOM = (function () {
       try {
         return Object.assign({}, DEFAULT_CUSTOM,
@@ -1298,11 +1306,95 @@
                oneSocket: oneEff, sock: sock, capped: cap < agg };
     }
 
-    const DEFAULT_RIG = { gpu: '5080', spare: '', cpu: 'arrow', numa: 'unknown', ramGB: 96, ramCh: 2, ramMTs: 6000, os: 'win' };
-    const OSRES = { win: 20, linux: 8, mac: 14 };
-    // VRAM the desktop itself holds before any model loads. Windows on a 4K display
-    // idles around 3 GB; a bare Linux console needs almost nothing.
-    const OSVRAM = { win: 3, linux: 1.5, mac: 0 };
+    const DEFAULT_RIG = {
+      gpu: '5080', spare: '', cpu: 'arrow', numa: 'unknown', ramGB: 96, ramCh: 2, ramMTs: 6000,
+      kind: 'std', uni: 'spark', uniN: 1
+    };
+    // What the machine is holding before a model loads. This used to be split by OS,
+    // which is a distinction without a difference: anyone can run WSL2, and the whole
+    // spread between Windows and a bare Linux console is a couple of GB against
+    // models measured in tens. One averaged figure each, applied everywhere.
+    const SYSRES = 14;       // GB of system RAM the OS and the runtime hold
+    const DISPVRAM = 2;      // GB of VRAM the desktop holds on a discrete card
+
+    // Unified-memory machines. One pool, no link to cross, so the whole model is
+    // resident by definition and prefill is purely compute-bound. Held in a table
+    // rather than written inline in buildHW() so the rig picker, the custom builder
+    // and the catalogue all read the same figures.
+    //
+    // link/maxN describe CLUSTERING. Several of these can be wired together to hold
+    // a model none of them fits alone -- two DGX Sparks over ConnectX-7, Macs over
+    // Thunderbolt 5 -- and what that buys is explained in uniHW().
+    const UNI = {
+      halo: {
+        n: 'Framework Desktop', meta: 'Strix Halo \u00b7 128GB unified \u00b7 215 GB/s',
+        vram: 128, bw: 165, res: 14, pfTF: 6.6, price: 6069,
+        link: 5, linkN: 'USB4 40Gb/s', hopUs: 300, maxN: 4
+      },
+      spark: {
+        n: 'NVIDIA DGX Spark', meta: 'GB10 \u00b7 128GB unified \u00b7 273 GB/s',
+        vram: 128, bw: 175, res: 14, pfTF: 18.4, price: 7999,
+        link: 25, linkN: 'ConnectX-7 200GbE', hopUs: 30, maxN: 2
+      },
+      mac: {
+        n: 'Mac Studio M3 Ultra', meta: '96GB unified \u00b7 819 GB/s \u00b7 96GB is the max sold',
+        vram: 96, bw: 214, res: 14, pfTF: 6.6, price: 9099,
+        link: 10, linkN: 'Thunderbolt 5', hopUs: 200, maxN: 4
+      },
+      m5max: {
+        n: 'MacBook Pro M5 Max', meta: '128GB unified \u00b7 614 GB/s \u00b7 40-core \u00b7 buyable new',
+        vram: 128, bw: 262, res: 16, pfTF: 8.7, price: 9999,
+        link: 10, linkN: 'Thunderbolt 5', hopUs: 200, maxN: 4
+      },
+      mac256: {
+        n: 'Mac Studio 256GB (grey)', meta: 'M3 Ultra 256GB \u00b7 pulled May 2026 \u00b7 AU resale',
+        vram: 256, bw: 214, res: 14, pfTF: 6.6, price: 29999,
+        link: 10, linkN: 'Thunderbolt 5', hopUs: 200, maxN: 4
+      },
+      mac512: {
+        n: 'Mac Studio 512GB (grey)', meta: 'M3 Ultra 512GB \u00b7 pulled Mar 2026 \u00b7 US resale',
+        vram: 512, bw: 214, res: 14, pfTF: 6.6, price: 36800,
+        link: 10, linkN: 'Thunderbolt 5', hopUs: 200, maxN: 4
+      },
+      // Two tiers rather than one pool, so it is NOT flagged unified: the 496 GB of
+      // LPDDR5X sits behind the 252 GB of HBM and the model has to choose.
+      gb300: {
+        n: 'DGX Station GB300', meta: '252GB HBM3e + 496GB LPDDR5X \u00b7 Grace Blackwell Ultra',
+        vram: 252, ram: 496, bw: 2400, bwSlow: 350, res: 20, pfTF: 60, price: 134600,
+        plat: 'g', gpus: 1, tiered: 1, linkNote: 'NVLink-C2C at 900 GB/s, not PCIe', maxN: 1
+      }
+    };
+
+    // One unified machine, optionally several of them clustered.
+    //
+    // Clustering is modelled honestly, and the honest answer is unintuitive: at batch
+    // 1 pipeline parallelism runs ONE node at a time. Node A computes its layers
+    // while B idles, then B computes its layers while A idles. The cluster therefore
+    // reads the whole model at ONE node's bandwidth -- capacity multiplies, bandwidth
+    // does not. That is exactly why two Sparks run a model neither of them fits, and
+    // run it no faster than a single Spark would if the model fitted on it.
+    //
+    // The activations that actually cross the link are tiny (a hidden state is single
+    // -digit KB, microseconds even on Thunderbolt), so the link cost is latency per
+    // hop, not bandwidth. It is small. The reason a cluster is slow is the serialised
+    // compute above, not the wire.
+    function uniHW(key, n, id) {
+      const u = UNI[key]; if (!u) return null;
+      n = Math.max(1, Math.min(u.maxN || 1, (n | 0) || 1));
+      const hops = n > 1 ? (n - 1) * 2 : 0;      // there and back per token
+      return {
+        id: id || (key + (n > 1 ? 'x' + n : '')),
+        name: u.n + (n > 1 ? ' \u00d7' + n : ''),
+        meta: u.meta + (n > 1 ? ' \u00b7 ' + n + ' nodes over ' + u.linkN : ''),
+        vram: u.vram * n, ram: (u.ram || 0) * n,
+        bwFast: u.bw, bwSlow: u.bwSlow || u.bw,   // per node, NOT summed -- see above
+        res: u.res, pfTF: u.pfTF, pfBest: u.pfTF, pfBestVram: 9999,
+        price: u.price * n, unified: u.tiered ? 0 : 1,
+        plat: u.plat, gpus: u.gpus, link: u.linkNote,
+        nodes: n, uniKey: key, linkGBs: u.link, linkN: u.linkN,
+        ovh: .0012 + hops * (u.hopUs || 200) / 1e6
+      };
+    }
 
     // Context length. A model that only fits at 8k is a demo; real work starts where
     // a codebase or a long document fits, and agentic loops need more again.
@@ -1376,7 +1468,7 @@
       HW = [];
       const owned = {}; if (RIG.gpu) owned[RIG.gpu] = 1;
       if (RIG.spare) owned[RIG.spare] = (owned[RIG.spare] || 0) + 1;
-      const res = OSRES[RIG.os] !== undefined ? OSRES[RIG.os] : 20;
+      const res = SYSRES;
 
       // Offer an arrangement only if it builds on the card you own, or replaces it
       // with something at least as good on capacity or bandwidth. Otherwise a 5090
@@ -1485,49 +1577,34 @@
           for (const r of pl.rams)
             HW.push({
               id: pl.k + '_' + g.k + '_' + r.k,
-              name: pl.k === 'd' ? ((g.mine && r.k === 'cur') ? 'Your current rig' : g.n + ' + ' + r.ram + 'GB')
-                : pl.n + ' + ' + g.s,
+              name: pl.k === 'd' ? ((g.mine && r.k === 'cur' && RIG.kind !== 'uni')
+                ? 'Your current rig' : g.n + ' + ' + r.ram + 'GB') : pl.n + ' + ' + g.s,
               meta: (pl.k === 'd' ? g.n : pl.n + ' \u00b7 ' + g.n) + ' \u00b7 ' + r.d + (g.slots > 1 ? ' \u00b7 layer-split' : ''),
               vram: g.vram, ram: r.ram, bwFast: g.bw,
           bwSlow: pl.cpuKey ? numaBW(CPUP[pl.cpuKey], 'distribute').bw : r.bw,
           res: pl.res, gpus: g.slots, plat: pl.k, cpuKey: pl.cpuKey,
           pfKey: g.pfKey, pfTF: g.pfTF, pfBest: g.pfBest, pfBestVram: g.pfBestVram,
           srv: g.srv, pcieGBs: pcieFor(pl.k, g.slots, g.pfKey),
-              alt: g.alt, tp: g.tp, tpSet: g.tpSet, mine: (pl.k === 'd' && g.mine && r.k === 'cur'),
+              alt: g.alt, tp: g.tp, tpSet: g.tpSet,
+              mine: (RIG.kind !== 'uni' && pl.k === 'd' && g.mine && r.k === 'cur'),
               price: pl.base + g.p + r.p, ovh: .0012
             });
       }
 
-      HW.push(
-        {
-          id: 'halo', name: 'Framework Desktop', meta: 'Strix Halo \u00b7 128GB unified \u00b7 215 GB/s',
-          vram: 128, ram: 0, bwFast: 165, bwSlow: 165, res: 14, pfTF: 6.6, pfBestVram: 9999, pfBest: 6.6, price: 6069, unified: 1, ovh: .0012
-        },
-        {
-          id: 'spark', name: 'NVIDIA DGX Spark', meta: 'GB10 \u00b7 128GB unified \u00b7 273 GB/s',
-          vram: 128, ram: 0, bwFast: 175, bwSlow: 175, res: 14, pfTF: 18.4, pfBestVram: 9999, pfBest: 18.4, price: 7999, unified: 1, ovh: .0012
-        },
-        {
-          id: 'mac', name: 'Mac Studio M3 Ultra', meta: '96GB unified \u00b7 819 GB/s \u00b7 96GB is the max sold',
-          vram: 96, ram: 0, bwFast: 214, bwSlow: 214, res: 14, pfTF: 6.6, pfBestVram: 9999, pfBest: 6.6, price: 9099, unified: 1, ovh: .0012
-        },
-        {
-          id: 'm5max', name: 'MacBook Pro M5 Max', meta: '128GB unified \u00b7 614 GB/s \u00b7 40-core \u00b7 buyable new',
-          vram: 128, ram: 0, bwFast: 262, bwSlow: 262, res: 16, pfTF: 8.7, pfBestVram: 9999, pfBest: 8.7, price: 9999, unified: 1, ovh: .0012
-        },
-        {
-          id: 'mac256', name: 'Mac Studio 256GB (grey)', meta: 'M3 Ultra 256GB \u00b7 pulled May 2026 \u00b7 AU resale',
-          vram: 256, ram: 0, bwFast: 214, bwSlow: 214, res: 14, pfTF: 6.6, pfBestVram: 9999, pfBest: 6.6, price: 29999, unified: 1, ovh: .0012
-        },
-        {
-          id: 'mac512', name: 'Mac Studio 512GB (grey)', meta: 'M3 Ultra 512GB \u00b7 pulled Mar 2026 \u00b7 US resale',
-          vram: 512, ram: 0, bwFast: 214, bwSlow: 214, res: 14, pfTF: 6.6, pfBestVram: 9999, pfBest: 6.6, price: 36800, unified: 1, ovh: .0012
-        },
-        {
-          id: 'gb300', name: 'DGX Station GB300', meta: '252GB HBM3e + 496GB LPDDR5X \u00b7 Grace Blackwell Ultra',
-          vram: 252, ram: 496, bwFast: 2400, bwSlow: 350, res: 20, pfTF: 60, pfBestVram: 9999, pfBest: 60, price: 134600, ovh: .0012,
-          gpus: 1, plat: 'g', link: 'NVLink-C2C at 900 GB/s, not PCIe'
-        });
+      // The unified machines, from the table above. When "your system" is one of
+      // these it is marked as yours -- costed at zero, like an owned card -- and the
+      // next node up is offered as the upgrade it actually is.
+      for (const k of Object.keys(UNI)) {
+        const isMine = RIG.kind === 'uni' && RIG.uni === k;
+        const h = uniHW(k, isMine ? RIG.uniN : 1);
+        if (isMine) { h.mine = 1; h.name = 'Your current rig'; h.price = 0; }
+        HW.push(h);
+        if (isMine && RIG.uniN < (UNI[k].maxN || 1)) {
+          const up = uniHW(k, RIG.uniN + 1, k + '_more');
+          up.price = UNI[k].price * (up.nodes - RIG.uniN);   // you only buy the new ones
+          HW.push(up);
+        }
+      }
 
       if (CUSTOM.on) HW.push(customHW(owned, res));
 
@@ -1541,6 +1618,11 @@
     // One machine assembled from the custom-build card. Priced the same way as every
     // other build: you only pay for cards you do not already own.
     function customHW(owned, res) {
+      // A unified custom build is just an entry from the table, possibly clustered.
+      if ((CUSTOM.kind || 'std') === 'uni') {
+        const h = uniHW(CUSTOM.uni, CUSTOM.uniN, 'custom');
+        if (h) { h.name = 'Custom build'; h.custom = 1; return h; }
+      }
       const pl = CPLAT[CUSTOM.plat] || CPLAT.d;
       const c = customCards();
       const plName = CUSTOM.plat === 'd' ? myCpu().n.split(' \u2014 ')[0] : pl.n;
@@ -1765,7 +1847,7 @@
       const KV = kvGB(m) + 1;
       // Usable pool, not nameplate. An OS, a desktop and the runtime all want
       // memory, and a discrete GPU loses some VRAM to display + context.
-      const DISP = hw.unified ? 0 : (OSVRAM[RIG.os] !== undefined ? OSVRAM[RIG.os] : 3);
+      const DISP = hw.unified ? 0 : DISPVRAM;
       const pool = hw.unified ? hw.vram - hw.res : (hw.vram - DISP) + (hw.ram - hw.res);
 
       // Q4 only. Dropping to Q3/Q2 would fit more but costs too much quality.
@@ -1851,7 +1933,7 @@
       // fixed and unified boxes carry pfTF directly -- so no build falls through to
       // a different formula. Comparing a PFTF-derived rate against a bandwidth proxy
       // was what made Strix Halo read as 0.0x against a 5080.
-      const disp0 = hw.unified ? 0 : (OSVRAM[RIG.os] !== undefined ? OSVRAM[RIG.os] : 3);
+      const disp0 = hw.unified ? 0 : DISPVRAM;
       const fitsBest = hw.pfBestVram && (m.gb + kvGB(m) + 1) <= (hw.pfBestVram - disp0);
       const tf = fitsBest ? hw.pfBest : (hw.pfTF || null);
 
@@ -1886,9 +1968,13 @@
       // the selected machine; the resident path leans on two anchors and the
       // offloaded path on one user-reported curve.
       const conf = unified || r.f >= 0.95 ? 'estimate' : 'speculative';
+      // Hand back the terms as well as the total. The panel re-prices the transfer
+      // term at llama.cpp's DEFAULT ubatch, because the gap between the two is the
+      // single most common reason a real machine misses this number by a multiple.
       return {
         fit: r.fit, tps: tps, sec: t, share: share, bound: bound, conf: conf,
-        passes: passes, offloadGB: offloadGB, link: lanes, Rcomp: Rcomp
+        passes: passes, offloadGB: offloadGB, link: lanes, Rcomp: Rcomp,
+        tComp: tCompute, tXfer: tTransfer, tAttn: tAttn
       };
     }
 
@@ -2535,7 +2621,7 @@
     // rather than inventing a colour.
     function bottlenecks(m, hw, r) {
       const KV = kvGB(m) + 1, need = m.gb + KV;
-      const disp = hw.unified ? 0 : (OSVRAM[RIG.os] !== undefined ? OSVRAM[RIG.os] : 3);
+      const disp = hw.unified ? 0 : DISPVRAM;
       const fast = hw.unified ? hw.vram - hw.res : hw.vram - disp;   // usable fast memory
       const sf = r.share[0], ss = r.share[1], so = r.share[2];
       const eff = hw.unified ? (GEFFU[m.g] || 1) : (GEFF[m.g] || 1);
@@ -2603,7 +2689,28 @@
             : 'Some of the token comes from system RAM. Worth watching, not yet the limit.', ss);
 
       // -- interconnect -----------------------------------------------------------
-      if (hw.link) add('interconnect', 'green', hw.link,
+      // A cluster earns green only when it is doing the one thing it can do: holding
+      // a model a single node will not. If the model already fits on one node, the
+      // extra boxes are contributing nothing at all -- they cannot add bandwidth --
+      // and that is worth a red row rather than a shrug, because it is the mistake
+      // the hardware invites.
+      if (hw.nodes > 1) {
+        const one = UNI[hw.uniKey], solo = one.vram - one.res;
+        const needsAll = need > solo;
+        add('node interconnect', needsAll ? 'green' : 'red',
+          hw.nodes + ' nodes over ' + hw.linkN + ' · ' + hw.linkGBs + ' GB/s',
+          needsAll
+            ? 'Earning its place: this model needs ' + need.toFixed(0) + ' GB and one node offers ' +
+              solo.toFixed(0) + ' GB. The cluster is what makes it loadable at all. It is not making ' +
+              'it faster — at batch 1 the nodes run in sequence, so the model is still read at ' +
+              'one node’s ' + hw.bwFast + ' GB/s.'
+            : 'This model needs ' + need.toFixed(0) + ' GB and fits on ONE node’s ' +
+              solo.toFixed(0) + ' GB. The other ' + (hw.nodes - 1) + ' are idle: pipeline parallelism ' +
+              'at batch 1 runs one node at a time, so a cluster can add capacity but never bandwidth. ' +
+              'Run this model on a single box and pocket the difference.',
+          needsAll ? 0.2 : 0.85);
+      }
+      else if (hw.link) add('interconnect', 'green', hw.link,
         'A coherent link rather than a peripheral bus, so the two memory pools behave as tiers of one machine.');
       else if (hw.unified) add('PCIe', 'green', 'no discrete GPU',
         'Nothing crosses a peripheral bus at any point.');
@@ -2769,6 +2876,24 @@
           'this is the term decode does not have, and it is paid per pass rather than per token',
         attention: 'attention dominates at this prompt length; it grows with the square of the prompt'
       };
+      // An offloaded prefill figure means nothing without the batch size it assumes.
+      // UBATCH here is 8192, which is a TUNED setup. llama.cpp ships -ub 512, paying
+      // the same transfer 16x more often, and on identical hardware that lands several
+      // times lower. Quoting only the tuned number makes this page look simply wrong
+      // to anyone running stock settings -- when the settings ARE the finding.
+      const DEF_UB = 512;
+      let tune = '';
+      if (p.offloadGB > 0) {
+        const dPass = Math.max(1, Math.ceil(NPROMPT / DEF_UB));
+        const dTps = NPROMPT / (Math.max(p.tComp, dPass * p.offloadGB / p.link) + p.tAttn);
+        if (dTps < p.tps * 0.9) tune = ` This figure assumes a <b>tuned batch</b>
+          (<code>-ub ${UBATCH} -b ${UBATCH}</code>). At llama.cpp\u2019s stock <code>-ub ${DEF_UB}</code>
+          that transfer is paid <b>${dPass}\u00d7</b> instead of ${p.passes}\u00d7 and the same
+          machine gives <b>${Math.round(dTps)} tok/s</b> \u2014 ${(p.tps / dTps).toFixed(1)}\u00d7
+          slower for no hardware reason at all. Raising the batch costs VRAM for the compute buffer,
+          so on a full card a Q8 KV cache (<code>--cache-type-k q8_0 --cache-type-v q8_0</code>)
+          normally has to come first.`;
+      }
       return `<p class="bnh" style="margin-top:16px">Prompt processing at <b>${n} tokens</b>
         \u00b7 <span style="color:var(${c[0]})">${c[1]}</span></p>
       <div class="st" style="margin-top:9px">
@@ -2782,7 +2907,7 @@
       </div>
       <p class="pm" style="margin-top:9px">${BOUND[p.bound] || ''}${p.offloadGB > 0
         ? ` <b>${p.offloadGB.toFixed(0)} GB</b> of experts live in system RAM and cross a
-            <b>${p.link} GB/s</b> link, ${p.passes}\u00d7 for this prompt.` : ''}</p>`;
+            <b>${p.link} GB/s</b> link, ${p.passes}\u00d7 for this prompt.` : ''}${tune}</p>`;
     }
 
     function bnHTML(m, hw, r) {
@@ -2877,9 +3002,11 @@ these as best-case. Batching recovers much of the MoE dispatch loss (gpt-oss-120
 79 → 147 t/s from batch 1 to 4), so a serving workload looks very different from this chart.
 <b>Q4 only</b> — a model that does not fit at ~4 bpw is shown as unloadable rather than silently
 dropped to Q3/Q2, since that quality loss usually outweighs the speed. Capacity is checked against
-<i>usable</i> memory, not nameplate: <b>20 GB</b> of system RAM is reserved on the Windows configs
-(measured — Task Manager shows 20.6 GB in use with a normal desktop), 1 GB of VRAM for display, and
-14 GB on the leaner unified-memory boxes. The 192 GB options fill all four DIMM slots, which on
+<i>usable</i> memory, not nameplate: <b>14 GB</b> of system RAM and <b>2 GB</b> of VRAM are held by the
+OS, the desktop and the runtime before a model loads. That is one averaged figure rather than a
+per-OS one, because the distinction does not survive contact with reality — anyone can run WSL2, and
+the whole spread between a Windows desktop (~20 GB, measured in Task Manager) and a bare Linux
+console (~8 GB) is small against models measured in tens of gigabytes. The 192 GB options fill all four DIMM slots, which on
 Arrow Lake with dual-rank 48 GB modules forces a drop to roughly DDR5-4800 — modelled as a ~17%
 bandwidth loss, so they trade speed for capacity. The one systematic miss is Qwen3.5 122B on the RTX PRO 6000,
 where the model reads 50% low — the published 100.6 t/s figure may include multi-token prediction.</p>
@@ -2990,8 +3117,30 @@ VRAM. NVIDIA extended memory price rises to mainstream cards on 23 Jul 2026.</p>
         (k === RIG.cpu ? ' selected' : '') + '>' + CPUP[k].n + '</option>').join('');
       numaSync();
       $('cfgRam').value = RIG.ramGB;
-      $('cfgMts').value = RIG.ramMTs; $('cfgOs').value = RIG.os;
+      $('cfgMts').value = RIG.ramMTs;
+      $('cfgKind').value = RIG.kind || 'std';
+      kindSync();
       cfgSummary();
+    }
+    // A unified box has no card, no channels and no NUMA policy, so declaring one
+    // hides the controls that describe a discrete build rather than leaving them
+    // sitting there implying they still apply.
+    function kindSync() {
+      const uni = (RIG.kind || 'std') === 'uni';
+      ['lblGpu', 'lblSpare', 'lblRam', 'lblCpu', 'lblMts'].forEach(id => {
+        const el = $(id); if (el) el.style.display = uni ? 'none' : '';
+      });
+      if (uni) $('numaLbl').style.display = 'none';
+      $('uniLbl').style.display = uni ? '' : 'none';
+      $('cfgUni').innerHTML = Object.keys(UNI).map(k => '<option value="' + k + '"' +
+        (k === RIG.uni ? ' selected' : '') + '>' + UNI[k].n + '</option>').join('');
+      const u = UNI[RIG.uni] || UNI.spark, maxN = u.maxN || 1;
+      $('uniNLbl').style.display = (uni && maxN > 1) ? '' : 'none';
+      let o = '';
+      for (let i = 1; i <= maxN; i++)
+        o += '<option value="' + i + '"' + (i === RIG.uniN ? ' selected' : '') + '>' +
+          i + (i > 1 ? ' nodes' : ' node') + '</option>';
+      $('cfgUniN').innerHTML = o;
     }
     // NUMA policy only exists on a multi-socket platform, so its control follows
     // the CPU selection. Called from both fill and apply -- apply alone would leave
@@ -3004,6 +3153,7 @@ VRAM. NVIDIA extended memory price rises to mainstream cards on 23 Jul 2026.</p>
     }
 
     function cfgSummary() {
+      if ((RIG.kind || 'std') === 'uni') return uniSummary();
       const g = GPUC[RIG.gpu], sp = RIG.spare ? GPUC[RIG.spare] : null;
       const vram = g.vram + (sp ? sp.vram : 0), rb = ramBW(RIG.ramCh, RIG.ramMTs);
       $('cfgOut').innerHTML = 'Modelled as <b>' + vram + ' GB VRAM</b> (' + g.n +
@@ -3011,25 +3161,53 @@ VRAM. NVIDIA extended memory price rises to mainstream cards on 23 Jul 2026.</p>
         Math.round(g.bw / g.nom * 100) + '% of its ' + g.nom + ' GB/s nominal, because batch-1 MoE decode ' +
         'converts only a fraction of any bus. System memory <b>~' + rb + ' GB/s effective</b> from ' +
         RIG.ramCh + '\u00d7 DDR5-' + RIG.ramMTs + ' on ' + myCpu().n + ' (' + myCpu().lanes +
-        ' CPU lanes, ' + myCpu().slots + ' usable card slots), with ' + (OSRES[RIG.os] || 20) +
-        ' GB reserved for the OS. ' +
+        ' CPU lanes, ' + myCpu().slots + ' usable card slots), with ' + SYSRES +
+        ' GB reserved for the OS and runtime. ' +
         (g.est ? '<b>This card\u2019s bandwidth is estimated, not calibrated from a benchmark.</b>' : '');
     }
+    // What a cluster of unified boxes is and is not. Written out because the
+    // intuition -- two machines, twice the speed -- is wrong in a way that costs
+    // real money if you act on it.
+    function uniSummary() {
+      const u = UNI[RIG.uni] || UNI.spark, n = RIG.uniN || 1;
+      const h = uniHW(RIG.uni, n);
+      $('cfgOut').innerHTML = 'Modelled as <b>' + h.vram + ' GB</b> of ' +
+        (u.tiered ? 'fast memory' : 'unified memory') + ' at <b>~' +
+        h.bwFast + ' GB/s effective</b>' +
+        (h.ram ? ' over ' + h.ram + ' GB of slower memory at ~' + h.bwSlow +
+          ' GB/s — two tiers, not one pool, so a model that overflows the fast tier ' +
+          'pays for it' : '') +
+        ', with ' + u.res + ' GB held by the OS. ' +
+        (n > 1
+          ? '<b>' + n + ' nodes over ' + u.linkN + '.</b> Clustering multiplies <b>capacity ' +
+            'only</b>: at batch 1 the nodes run in sequence — one computes its layers while ' +
+            'the others idle — so the cluster reads the model at <b>one node’s</b> ' +
+            'bandwidth, not ' + n + '× it. That is the point of it. It runs models no single ' +
+            'box holds, and it runs them slower than a single box would if one fitted. The wire ' +
+            'itself is not the problem: a hidden state is a few KB, microseconds even here.'
+          : (u.maxN || 1) > 1
+            ? 'Up to ' + u.maxN + ' of these can be wired together over ' + u.linkN +
+              ' to hold a model one will not — capacity only, never speed.'
+            : 'This machine does not cluster.');
+    }
     function cfgApply() {
+      RIG.kind = $('cfgKind').value === 'uni' ? 'uni' : 'std';
+      RIG.uni = $('cfgUni').value in UNI ? $('cfgUni').value : 'spark';
+      RIG.uniN = Math.max(1, Math.min(UNI[RIG.uni].maxN || 1, +$('cfgUniN').value || 1));
       RIG.gpu = $('cfgGpu').value; RIG.spare = $('cfgSpare').value;
       RIG.ramGB = Math.max(8, +$('cfgRam').value || 96);
       RIG.cpu = $('cfgCpu').value in CPUP ? $('cfgCpu').value : 'arrow';
       RIG.numa = $('cfgNuma').value in NUMA ? $('cfgNuma').value : 'unknown';
       RIG.ramCh = myCpu().ch;                 // channels are a platform property
       RIG.ramMTs = +$('cfgMts').value || 6000;
-      RIG.os = $('cfgOs').value;
       try { localStorage.setItem('rig', JSON.stringify(RIG)); } catch (e) { }
       buildHW();
       const mine = HW.find(h => h.mine);
       cur = mine ? mine.id : HW[0].id;
-      numaSync(); cfgSummary(); customSummary(); render();
+      numaSync(); kindSync(); cfgSummary(); customSummary(); render();
     }
-    ['cfgGpu', 'cfgSpare', 'cfgRam', 'cfgCpu', 'cfgNuma', 'cfgMts', 'cfgOs'].forEach(id => {
+    ['cfgGpu', 'cfgSpare', 'cfgRam', 'cfgCpu', 'cfgNuma', 'cfgMts',
+     'cfgKind', 'cfgUni', 'cfgUniN'].forEach(id => {
       const el = $(id); if (el) el.onchange = cfgApply;
     });
     if ($('cfgReset')) $('cfgReset').onclick = () => {
@@ -3042,6 +3220,26 @@ VRAM. NVIDIA extended memory price rises to mainstream cards on 23 Jul 2026.</p>
     // ---------- custom build panel ----------
     function customSave() { try { localStorage.setItem('custom', JSON.stringify(CUSTOM)); } catch (e) { } }
     function customOpen(on) { const p = $('customPanel'); if (p) p.style.display = (on && CUSTOM.on) ? '' : 'none'; }
+    // Same split as the rig panel: a unified custom build has no platform, no cards
+    // and no DIMMs to choose.
+    function cuKindSync() {
+      const uni = (CUSTOM.kind || 'std') === 'uni';
+      ['cuPlatLbl', 'cuGpuLbl', 'cuNLbl', 'cuGpu2Lbl', 'cuN2Lbl', 'cuRamLbl'].forEach(id => {
+        const el = $(id); if (el) el.style.display = uni ? 'none' : '';
+      });
+      if (uni) $('cuNumaLbl').style.display = 'none';
+      $('cuUniLbl').style.display = uni ? '' : 'none';
+      $('cuUni').innerHTML = Object.keys(UNI).map(k => '<option value="' + k + '"' +
+        (k === CUSTOM.uni ? ' selected' : '') + '>' + UNI[k].n + '</option>').join('');
+      const u = UNI[CUSTOM.uni] || UNI.spark, maxN = u.maxN || 1;
+      $('cuUniNLbl').style.display = (uni && maxN > 1) ? '' : 'none';
+      let o = '';
+      for (let i = 1; i <= maxN; i++)
+        o += '<option value="' + i + '"' + (i === CUSTOM.uniN ? ' selected' : '') + '>' +
+          i + (i > 1 ? ' nodes' : ' node') + '</option>';
+      $('cuUniN').innerHTML = o;
+      $('cuKind').value = CUSTOM.kind || 'std';
+    }
     function customFill() {
       const pl = CPLAT[CUSTOM.plat] || CPLAT.d;
       const c = customCards();
@@ -3070,10 +3268,22 @@ VRAM. NVIDIA extended memory price rises to mainstream cards on 23 Jul 2026.</p>
       $('cuNuma').innerHTML = Object.keys(NUMA).map(k => '<option value="' + k + '"' +
         (k === CUSTOM.numa ? ' selected' : '') + '>' + NUMA[k].n + '</option>').join('');
       $('cuRam').value = CUSTOM.ramGB;
+      cuKindSync();
       customSummary();
     }
     function customSummary() {
       const h = HW.find(x => x.id === 'custom'); if (!h) { $('cuOut').innerHTML = ''; return; }
+      if ((CUSTOM.kind || 'std') === 'uni') {
+        const u = UNI[CUSTOM.uni] || UNI.spark, n = h.nodes || 1;
+        $('cuOut').innerHTML = 'Modelled as <b>' + h.vram + ' GB</b> of ' +
+          (u.tiered ? 'fast memory' : 'unified memory') + ' at <b>~' +
+          h.bwFast + ' GB/s effective</b> for <b>' + h.priceTxt + '</b>. ' +
+          (n > 1 ? '<b>' + n + ' nodes over ' + u.linkN + '</b> — ' + n +
+            '× the capacity at <b>1× the bandwidth</b>, because pipeline parallelism at ' +
+            'batch 1 runs one node at a time. Buy this to fit a model, never to go faster.'
+            : (u.maxN || 1) > 1 ? 'Up to ' + u.maxN + ' can be clustered over ' + u.linkN + '.' : '');
+        return;
+      }
       const pl = CPLAT[CUSTOM.plat] || CPLAT.d, c = customCards();
       const est = Object.keys(c).filter(k => GPUC[k].est).map(k => GPUC[k].n);
       const mixed = Object.keys(c).length > 1;
@@ -3100,6 +3310,9 @@ VRAM. NVIDIA extended memory price rises to mainstream cards on 23 Jul 2026.</p>
         (pl.rdimm ? 'RDIMM priced at $' + PR.ramPerGBRdimm + '/GB, interpolated from the fixed builds.' : '');
     }
     function customApply() {
+      CUSTOM.kind = $('cuKind').value === 'uni' ? 'uni' : 'std';
+      CUSTOM.uni = $('cuUni').value in UNI ? $('cuUni').value : 'spark';
+      CUSTOM.uniN = Math.max(1, Math.min(UNI[CUSTOM.uni].maxN || 1, +$('cuUniN').value || 1));
       const slots = cplatSlots($('cuPlat').value);
       CUSTOM.plat = $('cuPlat').value;
       CUSTOM.gpu = $('cuGpu').value;
@@ -3110,7 +3323,8 @@ VRAM. NVIDIA extended memory price rises to mainstream cards on 23 Jul 2026.</p>
       CUSTOM.ramGB = Math.max(16, +$('cuRam').value || 128);
       customSave(); buildHW(); cur = 'custom'; customFill(); render();
     }
-    ['cuPlat', 'cuGpu', 'cuN', 'cuGpu2', 'cuN2', 'cuRam', 'cuNuma'].forEach(id => { const el = $(id); if (el) el.onchange = customApply; });
+    ['cuPlat', 'cuGpu', 'cuN', 'cuGpu2', 'cuN2', 'cuRam', 'cuNuma',
+     'cuKind', 'cuUni', 'cuUniN'].forEach(id => { const el = $(id); if (el) el.onchange = customApply; });
     if ($('cuClose')) $('cuClose').onclick = () => {
       CUSTOM.on = 0; customSave(); buildHW();
       cur = (HW.find(h => h.mine) || HW[0]).id; customOpen(false); render();

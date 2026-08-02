@@ -92,6 +92,13 @@ lens, use AA's own [embed](https://artificialanalysis.ai/embed/llm-leaderboard).
 ## Known limits
 
 - Batch-1, Q4-class quantisation only. Sub-Q4 usually costs more quality than the speed is worth.
+- **Prefill figures assume a tuned batch** (`-ub 8192 -b 8192`). llama.cpp ships `-ub 512`, which pays
+  the offload transfer sixteen times more often; where that matters the panel prints both numbers and
+  the stock-settings one can be several times lower on identical hardware. Decode is unaffected.
+- Clustering unified boxes (two DGX Sparks over ConnectX, Macs over Thunderbolt) is modelled as
+  **capacity only**: at batch 1 pipeline parallelism runs one node at a time, so the cluster reads the
+  model at a single node's bandwidth. It runs models no one box holds; it does not run them faster.
+- One averaged figure is used for idle system reserve (14 GB RAM, 2 GB VRAM) rather than a per-OS one.
 - Prices are sourced as **AUD retail** and switchable to USD at a dated constant rate (0.6973, 24 Jul
   2026) so the page works offline. AU retail includes 10% GST while US list prices normally exclude
   sales tax, so a converted figure sits above the US sticker you would compare it against. DRAM moved
