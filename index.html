@@ -1122,7 +1122,18 @@
       const fast = ks.slice().sort((x, y) => GPUC[y].bw - GPUC[x].bw)[0];
       // Prefill compute is set by the FASTEST card, not the harmonic mean:
       // a GEMM runs on one device at a time under layer split.
+      // pfKey stays the highest-BANDWIDTH card because that is what decides PCIe
+      // generation. Prefill compute is a different question and must not reuse it:
+      // a 3090 has more bandwidth than a 5080 but less compute, so picking by
+      // bandwidth made adding one LOWER prefill.
       const pfKey = fast;
+      // Layer split runs layers in sequence, each on the card that holds it, so the
+      // build's prefill rate is the capacity-weighted harmonic mean of its cards --
+      // the same structure already used for memory bandwidth.
+      const pfTF = vram / ks.reduce((t, k) => t + GPUC[k].vram * c[k] / (PFTF[k] || 20), 0);
+      // If the model fits on the best-compute card alone you would simply run it
+      // there, so carry that card's rate and its VRAM as the alternative.
+      const pfCard = ks.slice().sort((x, y) => (PFTF[y] || 20) - (PFTF[x] || 20))[0];
       // A build counts as server-class if ANY card in it is. Those are passive-cooled
       // parts that need chassis airflow, so they are kept out of the machine cards
       // (reachable through the custom builder) but still plotted on the staircase.
@@ -1141,7 +1152,7 @@
       return {
         k: ks.map(k => k + (c[k] > 1 ? 'x' + c[k] : '')).join('_'), n: nm, s: nm, mine: mine, c: c,
         vram: vram, bw: bw, slots: slots, p: price,
-        pfKey: pfKey, srv: srv,
+        pfKey: pfKey, pfTF: pfTF, pfBest: (PFTF[pfCard] || 20), pfBestVram: GPUC[pfCard].vram, srv: srv,
         alt: ks.length > 1 ? { vram: GPUC[fast].vram, bwFast: GPUC[fast].bw } : null,
         tp: (ks.length === 1 && c[ks[0]] >= 2) ? TPF[c[ks[0]]] : null,
         tpSet: (ks.length > 1 && tpSet) ? tpSet : null
@@ -1176,6 +1187,36 @@
       ep9004x2: { n: 'AMD EPYC 9004/9005 \u2014 2P, 24-ch DDR5', sock: 2, ch: 12, mts: 4800, lanes: 160, slots: 6, xgmi: 64, spec: 1 }
     };
     const myCpu = () => CPUP[RIG.cpu] || CPUP.arrow;
+
+    // ---- prefill ------------------------------------------------------------
+    // Prefill is a different physical regime from decode. Decode is a batch-1 GEMV:
+    // it reads every active byte to emit one token, so it is memory-bound. Prefill
+    // is a GEMM over the whole prompt: weights are read once and reused across the
+    // batch, so it is compute-bound while resident, and TRANSFER-bound when the
+    // weights live in system RAM.
+    //
+    // pf = effective prefill TFLOPS, i.e. what the runtime actually sustains, not
+    // the marketing figure. Only two clean anchors exist:
+    //   Qwen3.5-35B-A3B Q4, RTX 5090, fully resident: pp about 6900 t/s
+    //     -> 6900 x 2 x 3e9 = 41.4 TFLOPS                       (SRC.prefill)
+    //   V4-Flash, RTX PRO 6000 + dual EPYC, saturated: pp 3144 t/s
+    //     -> 3144 x 2 x 13e9 = 81.7 TFLOPS, but ~47% of weights were off the card,
+    //        so this is a LOWER bound on resident compute       (SRC.userbench)
+    // Everything else is scaled by class off those two and is an ESTIMATE. The
+    // implied PRO 6000 / 5090 ratio is 1.97x where the dies are within ~1.1x, so
+    // the spread is runtime and model, not silicon -- which is exactly why these
+    // are not presented as measurements.
+    const PFTF = {
+      '4060ti': 8, '4060ti16': 8, '5060ti': 12, '5070': 18, '4070tis': 20,
+      '5070ti': 26, '4080s': 24, '5080': 28, '3090': 16, '4090': 32,
+      '5090': 41.4, 'pro6000': 81.7, 'pro4000': 20, 'pro4500': 30,
+      'pro5000': 55, '6000ada': 30, 'a6000': 18,
+      // Server parts. Scaled by class off the 5090 anchor; datacentre silicon has
+      // far more peak FP16 than llama.cpp extracts, so these are deliberately well
+      // below the marketing figure and remain estimates.
+      'v100': 18, 'a30': 26, 'l4': 14, 'a40': 20, 'l40s': 42,
+      'a100': 55, 'a100x': 60, 'h100': 110, 'h100n': 125, 'h200': 130
+    };
 
     // PCIe effective bandwidth, GB/s, by generation at x16.
     const PCIE = { 3: 11, 4: 24, 5: 55 };
@@ -1450,7 +1491,8 @@
               vram: g.vram, ram: r.ram, bwFast: g.bw,
           bwSlow: pl.cpuKey ? numaBW(CPUP[pl.cpuKey], 'distribute').bw : r.bw,
           res: pl.res, gpus: g.slots, plat: pl.k, cpuKey: pl.cpuKey,
-          pfKey: g.pfKey, srv: g.srv, pcieGBs: pcieFor(pl.k, g.slots, g.pfKey),
+          pfKey: g.pfKey, pfTF: g.pfTF, pfBest: g.pfBest, pfBestVram: g.pfBestVram,
+          srv: g.srv, pcieGBs: pcieFor(pl.k, g.slots, g.pfKey),
               alt: g.alt, tp: g.tp, tpSet: g.tpSet, mine: (pl.k === 'd' && g.mine && r.k === 'cur'),
               price: pl.base + g.p + r.p, ovh: .0012
             });
@@ -1459,31 +1501,31 @@
       HW.push(
         {
           id: 'halo', name: 'Framework Desktop', meta: 'Strix Halo \u00b7 128GB unified \u00b7 215 GB/s',
-          vram: 128, ram: 0, bwFast: 165, bwSlow: 165, res: 14, price: 6069, unified: 1, ovh: .0012
+          vram: 128, ram: 0, bwFast: 165, bwSlow: 165, res: 14, pfTF: 6.6, pfBestVram: 9999, pfBest: 6.6, price: 6069, unified: 1, ovh: .0012
         },
         {
           id: 'spark', name: 'NVIDIA DGX Spark', meta: 'GB10 \u00b7 128GB unified \u00b7 273 GB/s',
-          vram: 128, ram: 0, bwFast: 175, bwSlow: 175, res: 14, price: 7999, unified: 1, ovh: .0012
+          vram: 128, ram: 0, bwFast: 175, bwSlow: 175, res: 14, pfTF: 18.4, pfBestVram: 9999, pfBest: 18.4, price: 7999, unified: 1, ovh: .0012
         },
         {
           id: 'mac', name: 'Mac Studio M3 Ultra', meta: '96GB unified \u00b7 819 GB/s \u00b7 96GB is the max sold',
-          vram: 96, ram: 0, bwFast: 214, bwSlow: 214, res: 14, price: 9099, unified: 1, ovh: .0012
+          vram: 96, ram: 0, bwFast: 214, bwSlow: 214, res: 14, pfTF: 6.6, pfBestVram: 9999, pfBest: 6.6, price: 9099, unified: 1, ovh: .0012
         },
         {
           id: 'm5max', name: 'MacBook Pro M5 Max', meta: '128GB unified \u00b7 614 GB/s \u00b7 40-core \u00b7 buyable new',
-          vram: 128, ram: 0, bwFast: 262, bwSlow: 262, res: 16, price: 9999, unified: 1, ovh: .0012
+          vram: 128, ram: 0, bwFast: 262, bwSlow: 262, res: 16, pfTF: 8.7, pfBestVram: 9999, pfBest: 8.7, price: 9999, unified: 1, ovh: .0012
         },
         {
           id: 'mac256', name: 'Mac Studio 256GB (grey)', meta: 'M3 Ultra 256GB \u00b7 pulled May 2026 \u00b7 AU resale',
-          vram: 256, ram: 0, bwFast: 214, bwSlow: 214, res: 14, price: 29999, unified: 1, ovh: .0012
+          vram: 256, ram: 0, bwFast: 214, bwSlow: 214, res: 14, pfTF: 6.6, pfBestVram: 9999, pfBest: 6.6, price: 29999, unified: 1, ovh: .0012
         },
         {
           id: 'mac512', name: 'Mac Studio 512GB (grey)', meta: 'M3 Ultra 512GB \u00b7 pulled Mar 2026 \u00b7 US resale',
-          vram: 512, ram: 0, bwFast: 214, bwSlow: 214, res: 14, price: 36800, unified: 1, ovh: .0012
+          vram: 512, ram: 0, bwFast: 214, bwSlow: 214, res: 14, pfTF: 6.6, pfBestVram: 9999, pfBest: 6.6, price: 36800, unified: 1, ovh: .0012
         },
         {
           id: 'gb300', name: 'DGX Station GB300', meta: '252GB HBM3e + 496GB LPDDR5X \u00b7 Grace Blackwell Ultra',
-          vram: 252, ram: 496, bwFast: 2400, bwSlow: 350, res: 20, price: 134600, ovh: .0012,
+          vram: 252, ram: 496, bwFast: 2400, bwSlow: 350, res: 20, pfTF: 60, pfBestVram: 9999, pfBest: 60, price: 134600, ovh: .0012,
           gpus: 1, plat: 'g', link: 'NVLink-C2C at 900 GB/s, not PCIe'
         });
 
@@ -1514,7 +1556,8 @@
         id: 'custom', name: 'Custom build',
         meta: g.n + ' \u00b7 ' + ramGB + 'GB \u00b7 ' + plName + (g.slots > 1 ? ' \u00b7 layer-split' : ''),
         vram: g.vram, ram: ramGB, bwFast: g.bw, bwSlow: bw, res: res, gpus: g.slots, plat: CUSTOM.plat,
-        pfKey: g.pfKey, pcieGBs: pcieFor(CUSTOM.plat, g.slots, g.pfKey),
+        pfKey: g.pfKey, pfTF: g.pfTF, pfBest: g.pfBest, pfBestVram: g.pfBestVram,
+        pcieGBs: pcieFor(CUSTOM.plat, g.slots, g.pfKey),
         alt: g.alt, tp: g.tp, tpSet: g.tpSet, custom: 1,
         price: pl.base + g.p + ramP, ovh: .0012
       };
@@ -1600,35 +1643,6 @@
     // only 33.8%, with the gap being per-token dispatch structure, not matmul
     // speed. Discrete GPUs suffer most; unified memory sees a milder version;
     // CPU-resident experts do not pay it at all (no kernel launches).
-    // ---- prefill ------------------------------------------------------------
-    // Prefill is a different physical regime from decode. Decode is a batch-1 GEMV:
-    // it reads every active byte to emit one token, so it is memory-bound. Prefill
-    // is a GEMM over the whole prompt: weights are read once and reused across the
-    // batch, so it is compute-bound while resident, and TRANSFER-bound when the
-    // weights live in system RAM.
-    //
-    // pf = effective prefill TFLOPS, i.e. what the runtime actually sustains, not
-    // the marketing figure. Only two clean anchors exist:
-    //   Qwen3.5-35B-A3B Q4, RTX 5090, fully resident: pp about 6900 t/s
-    //     -> 6900 x 2 x 3e9 = 41.4 TFLOPS                       (SRC.prefill)
-    //   V4-Flash, RTX PRO 6000 + dual EPYC, saturated: pp 3144 t/s
-    //     -> 3144 x 2 x 13e9 = 81.7 TFLOPS, but ~47% of weights were off the card,
-    //        so this is a LOWER bound on resident compute       (SRC.userbench)
-    // Everything else is scaled by class off those two and is an ESTIMATE. The
-    // implied PRO 6000 / 5090 ratio is 1.97x where the dies are within ~1.1x, so
-    // the spread is runtime and model, not silicon -- which is exactly why these
-    // are not presented as measurements.
-    const PFTF = {
-      '4060ti': 8, '4060ti16': 8, '5060ti': 12, '5070': 18, '4070tis': 20,
-      '5070ti': 26, '4080s': 24, '5080': 28, '3090': 16, '4090': 32,
-      '5090': 41.4, 'pro6000': 81.7, 'pro4000': 20, 'pro4500': 30,
-      'pro5000': 55, '6000ada': 30, 'a6000': 18,
-      // Server parts. Scaled by class off the 5090 anchor; datacentre silicon has
-      // far more peak FP16 than llama.cpp extracts, so these are deliberately well
-      // below the marketing figure and remain estimates.
-      'v100': 18, 'a30': 26, 'l4': 14, 'a40': 20, 'l40s': 42,
-      'a100': 55, 'a100x': 60, 'h100': 110, 'h100n': 125, 'h200': 130
-    };
     // llama.cpp streams CPU-resident experts to the GPU for any batch over this
     // many tokens (GGML_OP_OFFLOAD_MIN_BATCH). Below it the experts are computed on
     // the CPU instead. This threshold is why offloaded prefill and offloaded decode
@@ -1833,8 +1847,13 @@
       const r = calc(m, hw);
       if (r.fit === 'none') return { fit: 'none' };
       const act = m.active;                       // billions, active per token
-      const pfKey = hw.pfKey;                     // fastest card in the build
-      const tf = pfKey ? (PFTF[pfKey] || 20) : null;
+      // Effective prefill TFLOPS for this machine. Every machine now has one --
+      // fixed and unified boxes carry pfTF directly -- so no build falls through to
+      // a different formula. Comparing a PFTF-derived rate against a bandwidth proxy
+      // was what made Strix Halo read as 0.0x against a 5080.
+      const disp0 = hw.unified ? 0 : (OSVRAM[RIG.os] !== undefined ? OSVRAM[RIG.os] : 3);
+      const fitsBest = hw.pfBestVram && (m.gb + kvGB(m) + 1) <= (hw.pfBestVram - disp0);
+      const tf = fitsBest ? hw.pfBest : (hw.pfTF || null);
 
       // Unified-memory machines have no link to cross: weights are already where
       // the compute is, so prefill is purely compute-bound.
@@ -1844,8 +1863,7 @@
 
       // Resident compute. On a CPU-only or unified box, fall back to a bandwidth
       // proxy rather than asserting a FLOPS figure we do not have.
-      const Rcomp = tf ? (tf * 1e12) / (2 * act * 1e9)
-                       : Math.max(60, hw.bwFast / Math.max(0.5, act) * 4);
+      const Rcomp = (tf ? tf : 20) * 1e12 / (2 * act * 1e9);
 
       const lanes = hw.pcieGBs || PCIE[5];
       const passes = Math.max(1, Math.ceil(N / UBATCH));
@@ -2670,7 +2688,14 @@
             : pp.bound === 'attention'
               ? 'Attention is dominating at this prompt length; it grows with the square of the prompt, ' +
                 'so doubling the prompt roughly quadruples this share.'
-              : 'Compute-bound, which is the healthy case: the weights are on the card and the GPU is busy.',
+              : 'Compute-bound, which is the healthy case: the weights are on the card and the GPU is busy.' +
+                ((hw.gpus || 0) > 1 && hw.pfTF && hw.pfBest && hw.pfTF < hw.pfBest * 0.9
+                  ? ' Note the mixed pair costs you here: layer split runs layers in SEQUENCE, so the '
+                    + 'slower card sets the pace in proportion to how many layers its VRAM holds. This build '
+                    + 'converts ' + hw.pfTF.toFixed(0) + ' effective TFLOPS against ' + hw.pfBest.toFixed(0)
+                    + ' for its fastest card alone. Extra VRAM buys decode residency and costs prefill compute '
+                    + '— a real trade, not a rounding error.'
+                  : ''),
           0.6);
       }
 
