@@ -1006,14 +1006,31 @@
     const PR = {
       gpu4060ti: 400, gpu5060ti: 799, gpu5070ti: 1400, gpu5080: 1660, gpu5090: 6999, gpuPro: 18499,
       ramPerGB: 18.5, ramPerGBRdimm: 62, trCpu: 6749, trMobo: 1799, xeonCpu: 8000, xeonMobo: 2500,
-      // EPYC. The 7003 pair is a used-market figure -- Rome is several generations
-      // old and is bought second-hand, which is the only reason a 16-channel box
-      // lands anywhere near a consumer budget. All three are estimates.
-      epyc1Cpu: 7500, epyc1Mobo: 1600, epyc2Cpu: 15000, epyc2Mobo: 2600, epycRome2: 2800,
-      // Used DDR4 RDIMM is a different market with its own price, unaffected by the
-      // DDR5 allocation squeeze -- which is precisely why used Rome boxes dominate
-      // the value end of the staircase.
-      ramPerGBDdr4Used: 12.5
+      // EPYC. The 7002/7003 pair is a used-market figure: these are several
+      // generations old and are bought second-hand, which is the only reason a
+      // 16-channel box lands anywhere near a consumer budget.
+      //
+      // epycRome2 covers TWO CPUs plus a dual-SP3 board, and it was badly low at
+      // 2,800. It is now 9,600, and this is the widest uncertainty in the table --
+      // the two markets disagree by 3x and both are real:
+      //   US eBay, converted:  7413 24c ~A$525, 7543 32c ~A$1,180, 7713 64c ~A$2,180,
+      //                        dual-SP3 boards A$1,075-1,580. A 2P box lands
+      //                        A$3,400-6,000 if you are willing to import.
+      //   AU-sourced:          A$3-8k PER CPU, so A$7.5-17.5k assembled.
+      // 9,600 sits at the lower-middle of the AU range, on the reasoning that memory
+      // bandwidth comes from CHANNELS rather than cores, so the value build is the
+      // cheapest part that populates all eight channels per socket -- not the top SKU.
+      epyc1Cpu: 7500, epyc1Mobo: 1600, epyc2Cpu: 15000, epyc2Mobo: 2600, epycRome2: 9600,
+      // Used DDR4 RDIMM is a different market, but "different" no longer means
+      // "cheap and stable". Refurbished DDR4 is up 30-50% in the same squeeze, from a
+      // lower base: NEW 64 GB DDR4 ECC RDIMM runs US$472-499 (~A$12/GB landed), and
+      // AU-sourced 512 GB sets quote A$5-10k, i.e. A$10-19.5/GB. 15 is the middle of
+      // that, above the US figure because this page is priced in AU retail.
+      //
+      // This still beats DDR5 RDIMM at 62/GB by 4x, which is why used boxes keep the
+      // value end of the staircase -- but the gap is narrower than the old 12.5
+      // implied, and the CPU correction above matters more than this line does.
+      ramPerGBDdr4Used: 15
     };
     // Memory cost for a build, from the rate above rather than a hand-written figure.
     const rdimmP = gb => Math.round(gb * PR.ramPerGBRdimm);
@@ -1126,7 +1143,7 @@
       x: { n: 'Xeon 6 12-channel', slots: 8, base: PR.xeonCpu + PR.xeonMobo, ch: 12, bw: 150, rdimm: 1 },
       e1: { n: 'EPYC 9004/9005 \u2014 1P, 12-ch DDR5', slots: 4, base: PR.epyc1Cpu + PR.epyc1Mobo, ch: 12, cpu: 'ep9004', rdimm: 1, spec: 1 },
       e2: { n: 'EPYC 9004/9005 \u2014 2P, 24-ch DDR5', slots: 6, base: PR.epyc2Cpu + PR.epyc2Mobo, ch: 24, cpu: 'ep9004x2', rdimm: 1, spec: 1 },
-      r2: { n: 'EPYC 7003 \u2014 2P, 16-ch DDR4 (used)', slots: 6, base: PR.epycRome2, ch: 16, cpu: 'ep7003x2', rdimm: 1, spec: 1, used: 1 }
+      r2: { n: 'EPYC 7002/7003 \u2014 2P, 16-ch DDR4 (used)', slots: 6, base: PR.epycRome2, ch: 16, cpu: 'ep7003x2', rdimm: 1, spec: 1, used: 1 }
     };
     // Bandwidth for a custom platform. Multi-socket entries defer to the same NUMA
     // model the rig builder uses; everything else keeps its fixed calibrated figure.
@@ -1215,12 +1232,17 @@
       // Multi-socket. These are SPECULATIVE: see numaBW() for the model and SRC.numa
       // for the single measurement behind it. xgmi is per-direction inter-socket
       // bandwidth, which is what caps interleaved access.
-      // yld overrides the default wide-bus yield. Rome (7003) cannot convert its
+      // NAMING: 7002 is Rome, 7003 is Milan -- this entry was calling 7003 "Rome",
+      // which is wrong by one generation. Both are socket SP3 with 8 channels of
+      // DDR4-3200, so they model identically here, and the yield below is calibrated
+      // from a 7642, which is a ROME part. Labelled for both rather than picking the
+      // wrong one.
+      // yld overrides the default wide-bus yield. These cannot convert their
       // channels the way Genoa can -- Infinity Fabric, not the DIMMs, is the
       // limiter. 0.45 is back-calculated from the dual-7642 dataset in SRC.userbench,
       // which lands on 180-204 GB/s against a 410 GB/s theoretical.
-      ep7003: { n: 'AMD EPYC 7003 \u2014 1P, 8-ch DDR4', sock: 1, ch: 8, mts: 3200, lanes: 128, slots: 4, yld: 0.5, spec: 1 },
-      ep7003x2: { n: 'AMD EPYC 7003 \u2014 2P, 16-ch DDR4', sock: 2, ch: 8, mts: 3200, lanes: 160, slots: 6, xgmi: 64, yld: 0.5, spec: 1 },
+      ep7003: { n: 'AMD EPYC 7002/7003 \u2014 1P, 8-ch DDR4', sock: 1, ch: 8, mts: 3200, lanes: 128, slots: 4, yld: 0.5, spec: 1 },
+      ep7003x2: { n: 'AMD EPYC 7002/7003 \u2014 2P, 16-ch DDR4', sock: 2, ch: 8, mts: 3200, lanes: 160, slots: 6, xgmi: 64, yld: 0.5, spec: 1 },
       ep9004: { n: 'AMD EPYC 9004/9005 \u2014 1P, 12-ch DDR5', sock: 1, ch: 12, mts: 4800, lanes: 128, slots: 4, spec: 1 },
       ep9004x2: { n: 'AMD EPYC 9004/9005 \u2014 2P, 24-ch DDR5', sock: 2, ch: 12, mts: 4800, lanes: 160, slots: 6, xgmi: 64, spec: 1 }
     };
@@ -1571,7 +1593,7 @@
             { k: '1536', ram: 1536, bw: 0, p: rdimmP(1536), d: '1536GB RDIMM 24-ch' }]
         },
         {
-          k: 'r', n: 'EPYC 7003 2P (used)', slots: 6, res: res, base: PR.epycRome2,
+          k: 'r', n: 'EPYC 7002/7003 2P (used)', slots: 6, res: res, base: PR.epycRome2,
           cpuKey: 'ep7003x2', rams: [
             { k: '512', ram: 512, bw: 0, p: ddr4P(512), d: '512GB DDR4 16-ch (used)' },
             { k: '1024', ram: 1024, bw: 0, p: ddr4P(1024), d: '1TB DDR4 16-ch (used)' }]

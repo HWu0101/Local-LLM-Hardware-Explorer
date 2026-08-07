@@ -105,8 +105,15 @@ lens, use AA's own [embed](https://artificialanalysis.ai/embed/llm-leaderboard).
 - **Memory is the volatile line.** Server DDR5 ECC RDIMM is priced at A$62/GB (re-checked 7 Aug 2026;
   8×32 GB quotes at A$15–17k) and is still climbing as AI-server demand takes the high-capacity
   modules. On a large-memory build this is usually a bigger number than the CPU and the cards
-  combined, so re-check it before deciding anything. Used DDR4 sits on a separate market at
-  A$12.5/GB, which is the entire reason second-hand EPYC 7003 boxes dominate the value end.
+  combined, so re-check it before deciding anything.
+- **Second-hand server hardware is not the bargain it was.** Refurbished DDR4 is up 30–50% in the
+  same squeeze (A$15/GB here, against A$62 for DDR5 RDIMM and A$18.5 for consumer DDR5 — the
+  discount over ordinary desktop memory has nearly vanished), and used EPYC 7002/7003 prices span
+  a genuine 3× between US eBay and AU-sourced. `epycRome2` covers two CPUs plus a dual-SP3 board at
+  A$9,600, which is the lower-middle of the AU range on the reasoning that memory bandwidth comes
+  from **channels, not cores** — the value build populates all eight channels per socket with the
+  cheapest part that will, not the top SKU. This is the widest single uncertainty in the price
+  table; if you can import, it drops by half.
 - Many cards carry `bw est`, `price est` or `used market` flags in the picker, shown per card. Cards
   without a published decode benchmark have their effective bandwidth estimated from nominal at the
   conversion rate the calibrated cards exhibit (~55% consumer, ~45% RTX PRO); that rule lands within
