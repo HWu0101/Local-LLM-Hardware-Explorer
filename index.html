@@ -700,8 +700,8 @@
     <p class="sub">Pick a machine, or set a budget and let it search 100+ builds for the ones nothing
       else beats. Every model repositions horizontally by how fast it decodes on the selected build, and
       drops into the zero column if it will not load. Click any model for its own price-vs-speed staircase
-      on the right. Hardware is filtered to upgrades that actually move quality or speed. Data 26 Jul 2026 ·
-      prices sourced in AUD, switchable to USD.</p>
+      on the right. Hardware is filtered to upgrades that actually move quality or speed. Data 26 Jul 2026,
+      prices re-checked 7 Aug 2026 · sourced in AUD inc GST, switchable to USD.</p>
 
     <div class="eq">
       <b>t/token</b> = bytes_read × [ f / BW<sub>fast</sub> + (1−f) / BW<sub>slow</sub> ] + overhead
@@ -958,9 +958,11 @@
           'converted figure sits above the US sticker you would compare it against.'
       },
       prices: {
-        name: 'Australian retail prices', asOf: '2026-07-26', pub: true,
+        name: 'Australian retail prices', asOf: '2026-08-07', pub: true,
         licence: 'observed retail listings; facts, not a licensed dataset',
-        url: '', note: 'inc GST. DRAM moved ~5x in 12 months -- re-check before deciding.'
+        url: '', note: 'inc GST. DRAM is the volatile line: server RDIMM re-checked ' +
+          '7 Aug 2026 at A$62/GB, up from A$48, and still rising under AI-server ' +
+          'allocation. A large-memory build is now mostly a memory bill.'
       },
       arena: {
         name: 'Arena ratings (Bradley-Terry) \u2014 text (style-controlled), WebDev, Agent',
@@ -979,15 +981,43 @@
       }
     };
 
-    // AUD, as dated in SRC.prices.
+    // AUD inc GST, as dated in SRC.prices. Re-checked 7 Aug 2026.
+    //
+    // Two of these moved enough to change which builds the tool recommends:
+    //
+    //   RTX PRO 6000  17,999 -> 18,499. The old figure was the Max-Q variant; the
+    //     card modelled here is the 600W Workstation Edition, which is the dearer
+    //     one. Both are listed side by side at Mwave, which is how the mix-up
+    //     happened.
+    //   RTX 5090       5,999 ->  6,999. Cheapest AU listing was 6,499 in June 2026
+    //     and has kept climbing.
+    //   RDIMM /GB         48 ->     62. The big one. A 256 GB set of 8x32 GB DDR5
+    //     ECC RDIMM quotes at A$15-17k in AU retail, i.e. A$59-66/GB. The old 48
+    //     was closer to the US spot index (US$30.94/GB best-case mid-July 2026,
+    //     ~A$49/GB landed with GST), which is not what anyone here actually pays.
+    //     Server RDIMM is under allocation pressure -- hyperscalers are taking the
+    //     high-capacity modules -- so treat this as a floor that is still rising.
+    //
+    // Verified unchanged rather than assumed: consumer DDR5 at 18.5/GB is still the
+    // cheapest in-stock 2x32 GB kit (A$1,199 = A$18.7/GB); mid-market kits run to
+    // A$31/GB, so this line is the bottom of the range, deliberately. EPYC at 7,500
+    // matches a 9754 at ~A$7k, though AU distributor RRP for the 12-channel Turin
+    // parts spans A$6.3k-13.1k inc GST depending on core count.
     const PR = {
-      gpu4060ti: 400, gpu5060ti: 799, gpu5070ti: 1400, gpu5080: 1660, gpu5090: 5999, gpuPro: 17999,
-      ramPerGB: 18.5, ramPerGBRdimm: 48, trCpu: 6749, trMobo: 1799, xeonCpu: 8000, xeonMobo: 2500,
+      gpu4060ti: 400, gpu5060ti: 799, gpu5070ti: 1400, gpu5080: 1660, gpu5090: 6999, gpuPro: 18499,
+      ramPerGB: 18.5, ramPerGBRdimm: 62, trCpu: 6749, trMobo: 1799, xeonCpu: 8000, xeonMobo: 2500,
       // EPYC. The 7003 pair is a used-market figure -- Rome is several generations
       // old and is bought second-hand, which is the only reason a 16-channel box
       // lands anywhere near a consumer budget. All three are estimates.
-      epyc1Cpu: 7500, epyc1Mobo: 1600, epyc2Cpu: 15000, epyc2Mobo: 2600, epycRome2: 2800
+      epyc1Cpu: 7500, epyc1Mobo: 1600, epyc2Cpu: 15000, epyc2Mobo: 2600, epycRome2: 2800,
+      // Used DDR4 RDIMM is a different market with its own price, unaffected by the
+      // DDR5 allocation squeeze -- which is precisely why used Rome boxes dominate
+      // the value end of the staircase.
+      ramPerGBDdr4Used: 12.5
     };
+    // Memory cost for a build, from the rate above rather than a hand-written figure.
+    const rdimmP = gb => Math.round(gb * PR.ramPerGBRdimm);
+    const ddr4P = gb => Math.round(gb * PR.ramPerGBDdr4Used);
 
     // GPU catalogue. bw is EFFECTIVE GB/s during batch-1 MoE decode, back-calculated
     // from published benchmarks -- never a spec sheet. nom is kept only so the UI can
@@ -1523,11 +1553,11 @@
         // everywhere else in this table, but that is corroboration, not calibration.
         {
           k: 't', n: 'Threadripper', slots: 4, res: res, base: PR.trCpu + PR.trMobo, rams: [
-            { k: '192', ram: 192, bw: 190, p: 8999, d: '192GB RDIMM 8-ch' },
-            { k: '256', ram: 256, bw: 190, p: 13592, d: '256GB RDIMM 8-ch' },
-            { k: '384', ram: 384, bw: 190, p: 17999, d: '384GB RDIMM 8-ch' },
-            { k: '512', ram: 512, bw: 190, p: 26392, d: '512GB RDIMM 8-ch' },
-            { k: '768', ram: 768, bw: 190, p: 42000, d: '768GB RDIMM 8-ch (est)' }]
+            { k: '192', ram: 192, bw: 190, p: rdimmP(192), d: '192GB RDIMM 8-ch' },
+            { k: '256', ram: 256, bw: 190, p: rdimmP(256), d: '256GB RDIMM 8-ch' },
+            { k: '384', ram: 384, bw: 190, p: rdimmP(384), d: '384GB RDIMM 8-ch' },
+            { k: '512', ram: 512, bw: 190, p: rdimmP(512), d: '512GB RDIMM 8-ch' },
+            { k: '768', ram: 768, bw: 190, p: rdimmP(768), d: '768GB RDIMM 8-ch' }]
         },
         {
           // Dual-socket EPYC. Present so the staircase shows what a multi-CPU box
@@ -1536,21 +1566,21 @@
           // flag the scaling as speculative.
           k: 'e', n: 'EPYC 9004 2P', slots: 6, res: res, base: PR.epyc2Cpu + PR.epyc2Mobo,
           cpuKey: 'ep9004x2', rams: [
-            { k: '384', ram: 384, bw: 0, p: 18432, d: '384GB RDIMM 24-ch' },
-            { k: '768', ram: 768, bw: 0, p: 36864, d: '768GB RDIMM 24-ch' },
-            { k: '1536', ram: 1536, bw: 0, p: 73728, d: '1536GB RDIMM 24-ch (est)' }]
+            { k: '384', ram: 384, bw: 0, p: rdimmP(384), d: '384GB RDIMM 24-ch' },
+            { k: '768', ram: 768, bw: 0, p: rdimmP(768), d: '768GB RDIMM 24-ch' },
+            { k: '1536', ram: 1536, bw: 0, p: rdimmP(1536), d: '1536GB RDIMM 24-ch' }]
         },
         {
           k: 'r', n: 'EPYC 7003 2P (used)', slots: 6, res: res, base: PR.epycRome2,
           cpuKey: 'ep7003x2', rams: [
-            { k: '512', ram: 512, bw: 0, p: 6400, d: '512GB DDR4 16-ch (used)' },
-            { k: '1024', ram: 1024, bw: 0, p: 12800, d: '1TB DDR4 16-ch (used)' }]
+            { k: '512', ram: 512, bw: 0, p: ddr4P(512), d: '512GB DDR4 16-ch (used)' },
+            { k: '1024', ram: 1024, bw: 0, p: ddr4P(1024), d: '1TB DDR4 16-ch (used)' }]
         },
         {
           k: 'x', n: 'Xeon 6', slots: 8, res: res, base: PR.xeonCpu + PR.xeonMobo, rams: [
-            { k: '384', ram: 384, bw: 150, p: 20388, d: '384GB RDIMM 12-ch' },
-            { k: '768', ram: 768, bw: 150, p: 39588, d: '768GB RDIMM 12-ch' },
-            { k: '1152', ram: 1152, bw: 150, p: 57600, d: '1152GB RDIMM 12-ch (est)' }]
+            { k: '384', ram: 384, bw: 150, p: rdimmP(384), d: '384GB RDIMM 12-ch' },
+            { k: '768', ram: 768, bw: 150, p: rdimmP(768), d: '768GB RDIMM 12-ch' },
+            { k: '1152', ram: 1152, bw: 150, p: rdimmP(1152), d: '1152GB RDIMM 12-ch' }]
         }
       ];
 
@@ -1631,8 +1661,9 @@
       // Server memory is RDIMM and priced per GB from the fixed builds above.
       // On your own board you only pay for what you add, and filling every slot
       // costs a speed grade -- the same 0.83 penalty the stock upgrade path carries.
-      const ramP = pl.rdimm ? Math.round(ramGB * PR.ramPerGBRdimm)
-        : Math.round(Math.max(0, ramGB - RIG.ramGB) * PR.ramPerGB);
+      const ramP = pl.used ? ddr4P(ramGB)
+        : pl.rdimm ? rdimmP(ramGB)
+          : Math.round(Math.max(0, ramGB - RIG.ramGB) * PR.ramPerGB);
       const bw = cplatBW(CUSTOM.plat) || Math.round(ramBW(RIG.ramCh, RIG.ramMTs) * (ramGB > RIG.ramGB ? 0.83 : 1));
       return {
         id: 'custom', name: 'Custom build',
@@ -2675,14 +2706,14 @@
       // -- bandwidth --------------------------------------------------------------
       add(hw.unified ? 'unified memory bandwidth' : 'GPU memory bandwidth',
         sf >= 0.6 ? 'red' : sf >= 0.35 ? 'amber' : 'green',
-        hw.bwFast + ' GB/s effective \u00b7 ' + (sf * 100).toFixed(0) + '% of each token',
+        hw.bwFast + ' GB/s effective \u00b7 ' + (sf * 100).toFixed(0) + '% of each token\u2019s time',
         sf >= 0.6 ? 'The binding constraint. Nothing but a faster memory system moves this number \u2014 ' +
           'more VRAM at the same bandwidth changes nothing.'
           : sf >= 0.35 ? 'A real share of the time, but not the largest.'
             : 'Plenty of headroom. The time is going somewhere else.', sf);
 
       if (!hw.unified) add('system RAM bandwidth', ss >= 0.5 ? 'red' : ss >= 0.2 ? 'amber' : 'green',
-        hw.bwSlow + ' GB/s effective \u00b7 ' + (ss * 100).toFixed(0) + '% of each token',
+        hw.bwSlow + ' GB/s effective \u00b7 ' + (ss * 100).toFixed(0) + '% of each token\u2019s time',
         ss < 0.02 ? 'Nothing is offloaded, so the system bus is idle during decode.'
           : ss >= 0.5 ? 'Most of the token is spent pulling experts out of system RAM. More channels or ' +
             'faster DIMMs beat a faster GPU here \u2014 buy the fastest SLOW tier, not the fastest fast one.'
@@ -2837,18 +2868,35 @@
     <p class="pm">${m.total}B total · ${m.active}B active · ${m.gb} GB at Q4 ·
       reads ~${r.bytes.toFixed(2)} GB per token ·
       KV cache ~${kvGB(m).toFixed(1)} GB at ${(CTXS.find(c => c.k === CTX) || {}).n} · ${r.measured ? 'speed is a published measurement, taken at short context' : 'speed is modelled'}</p>
+    <p class="pm" style="margin:14px 0 5px">Where each token’s
+      <b>${(1000 / r.tps).toFixed(1)} ms</b> goes — a split of <b>time</b>, not of bytes.${
+      // The gap has two causes and they need different sentences. Offloaded, it is the
+      // slow tier. Fully resident there IS no slow tier, and the offload wording then
+      // told machines with nothing offloaded that their resident weights were coming
+      // from system RAM. Gate on the slow tier actually costing time.
+      (b > 0.02 && r.f > a + 0.06)
+      ? ` The fast tier holds <b>${(r.f * 100).toFixed(0)}%</b> of the active bytes
+      but accounts for only <b>${(a * 100).toFixed(0)}%</b> of the clock: what is left in system RAM
+      is read ${(hw.bwFast * (hw.unified ? (GEFFU[m.g] || 1) : (GEFF[m.g] || 1)) / hw.bwSlow).toFixed(1)}×
+      slower per byte, so a minority of the bytes takes a majority of the time. That asymmetry is the
+      whole reason residency pays.`
+      : c > 0.12
+      ? ` Every byte is already in fast memory, so none of this is offload — the
+      <b>${(c * 100).toFixed(0)}%</b> that is not memory traffic is fixed per-token cost, which is
+      what dominates once a model is small enough to stop being bandwidth-bound.`
+      : ''}</p>
     <div class="bar">
       <span style="width:${a * 100}%;background:var(--acc)"></span>
       <span style="width:${b * 100}%;background:var(--cpu)"></span>
       <span style="width:${c * 100}%;background:var(--none)"></span></div>
     <div class="row" style="margin-top:0">
-      <div class="key"><span class="sw" style="background:var(--acc)"></span>fast memory ${(a * 100).toFixed(0)}%</div>
-      <div class="key"><span class="sw" style="background:var(--cpu)"></span>slow tier ${(b * 100).toFixed(0)}%</div>
+      <div class="key"><span class="sw" style="background:var(--acc)"></span>fast-tier reads ${(a * 100).toFixed(0)}% of the time</div>
+      <div class="key"><span class="sw" style="background:var(--cpu)"></span>slow-tier reads ${(b * 100).toFixed(0)}%</div>
       <div class="key"><span class="sw" style="background:var(--none)"></span>fixed overhead ${(c * 100).toFixed(0)}%</div>
     </div>
     <div class="st">
       <div><div class="l">decode</div><div class="v">${r.tps.toFixed(1)} <span style="font-size:12px;font-weight:400">tok/s</span></div></div>
-      <div><div class="l">in fast memory</div><div class="v">${(r.f * 100).toFixed(0)}%</div></div>
+      <div><div class="l">active bytes in fast memory</div><div class="v">${(r.f * 100).toFixed(0)}%</div></div>
       <div><div class="l">${MT().short}</div><div class="v">${qv(m) != null ? MT().fmt(qv(m)) : '\u2014'}</div></div>
       <div><div class="l">machine cost</div><div class="v">${hw.price ? AUD(hw.price) : 'owned'}</div></div>
     </div>
@@ -3307,7 +3355,9 @@ VRAM. NVIDIA extended memory price rises to mainstream cards on 23 Jul 2026.</p>
           'wherever doing so is quicker. ' : '') +
         tpTxt +
         (est.length ? '<b>' + est.join(' and ') + ' bandwidth is estimated, not calibrated from a benchmark.</b> ' : '') +
-        (pl.rdimm ? 'RDIMM priced at $' + PR.ramPerGBRdimm + '/GB, interpolated from the fixed builds.' : '');
+        (pl.rdimm ? 'RDIMM priced at $' + PR.ramPerGBRdimm + '/GB \u2014 an observed AU retail ' +
+          'figure (8\u00d732 GB DDR5 ECC quotes at A$15-17k), not a spot index. On a large-memory ' +
+          'build this line, not the CPU or the cards, is usually the biggest number on the invoice.' : '');
     }
     function customApply() {
       CUSTOM.kind = $('cuKind').value === 'uni' ? 'uni' : 'std';

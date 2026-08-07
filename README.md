@@ -101,8 +101,12 @@ lens, use AA's own [embed](https://artificialanalysis.ai/embed/llm-leaderboard).
 - One averaged figure is used for idle system reserve (14 GB RAM, 2 GB VRAM) rather than a per-OS one.
 - Prices are sourced as **AUD retail** and switchable to USD at a dated constant rate (0.6973, 24 Jul
   2026) so the page works offline. AU retail includes 10% GST while US list prices normally exclude
-  sales tax, so a converted figure sits above the US sticker you would compare it against. DRAM moved
-  roughly 5× in twelve months, so re-check anything that matters.
+  sales tax, so a converted figure sits above the US sticker you would compare it against.
+- **Memory is the volatile line.** Server DDR5 ECC RDIMM is priced at A$62/GB (re-checked 7 Aug 2026;
+  8×32 GB quotes at A$15–17k) and is still climbing as AI-server demand takes the high-capacity
+  modules. On a large-memory build this is usually a bigger number than the CPU and the cards
+  combined, so re-check it before deciding anything. Used DDR4 sits on a separate market at
+  A$12.5/GB, which is the entire reason second-hand EPYC 7003 boxes dominate the value end.
 - Many cards carry `bw est`, `price est` or `used market` flags in the picker, shown per card. Cards
   without a published decode benchmark have their effective bandwidth estimated from nominal at the
   conversion rate the calibrated cards exhibit (~55% consumer, ~45% RTX PRO); that rule lands within
