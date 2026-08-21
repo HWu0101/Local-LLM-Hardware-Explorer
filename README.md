@@ -43,7 +43,14 @@ goes as `1/(1 − f)`, which is why the last few percent of residency are worth 
 Bandwidth figures are **effective batch-1 decode throughput back-calculated from published token
 benchmarks** — never spec sheets, and never streaming rooflines, which are roughly twice what MoE
 decode converts. Against 14 published measurements the model has a leave-one-out median error of
-**5.8%** (worst case 34%).
+**5.9%**, worst case **57%**.
+
+That worst case was previously quoted as 34%. It was wrong: the harness that produced it cleared the
+calibration cache but left the held-out measurement in place, so `calc()` returned the measurement
+itself for the pair being tested. Under strict leave-one-out the median barely moves (5.3% → 5.9%)
+but the tail is much heavier, and the single worst case — gpt-oss-20b on a 16 GB 5080 — is a genuine
+model weakness rather than an artefact. Treat the median as the useful figure and the tail as a
+warning that a small coarse-MoE model on a small card can be badly under-predicted.
 
 Solid dots are published measurements; dashed rings are modelled. Hollow rings are proxy quality
 scores. Each machine's detail panel carries a bottleneck audit — memory capacity, residency, KV
@@ -56,9 +63,9 @@ Quality scores come from the **Arena leaderboard dataset**, three lenses:
 
 | Lens | What it measures | Models rated here |
 |---|---|---|
-| Arena text | style-controlled human preference on ordinary chat | 24 of 30 |
-| Arena WebDev | the same method on front-end build tasks | 16 of 30 |
-| Arena Agent | standardised score on agentic sessions, 0 = field average | 10 of 30 |
+| Arena text | style-controlled human preference on ordinary chat | 36 of 49 |
+| Arena WebDev | the same method on front-end build tasks | 16 of 49 |
+| Arena Agent | standardised score on agentic sessions, 0 = field average | 10 of 49 |
 
 Coverage is shown beside the metric selector, and models unrated on the active lens are hidden and
 counted under the chart. There is deliberately **no blended score**: the lenses disagree, and that
@@ -67,7 +74,7 @@ disagreement is the useful signal.
 > Rating data from [`lmarena-ai/leaderboard-dataset`](https://huggingface.co/datasets/lmarena-ai/leaderboard-dataset)
 > by **Arena Intelligence, Inc.**, used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 > **Changes made:** a subset of models was selected; values were reformatted for plotting and rounded
-> for display; no rating was altered. Latest split read 27 July 2026.
+> for display; no rating was altered. Latest split read 19 August 2026.
 > Cite: Chiang et al., *Chatbot Arena*, [arXiv:2403.04132](https://arxiv.org/abs/2403.04132).
 
 These are **Bradley–Terry** ratings, not Elo, despite the common label. Taken from the dataset
@@ -77,13 +84,20 @@ Two Qwen3.6 entries carry their identically-sized Qwen3.5 sibling's rating as a 
 drawn hollow, because no Qwen3.6 open-weight model has been rated. `GLM-4.7-Flash` deliberately has
 no WebDev rating: the board carries `glm-4.7`, which is a different model.
 
+Nineteen models were added in the 21 Aug 2026 refresh, including Qwen3.8-27B, the GLM-5/5.1/5.3
+siblings, MiMo-V2.5 and V2.5-Pro, Hunyuan Hy3, Mistral Large 3 and Medium 3.5, Inkling, Motif 3 and
+Qwen3-Coder 480B. Models carrying `est` have their Q4 file size derived from total parameters at the
+0.58 ratio the sighted GGUFs in this table exhibit, not from a sighted download — so their bubble
+size and capacity verdicts are estimates. Several are rated on only one lens because the boards do
+not all move at the same speed.
+
 **This page is not affiliated with or endorsed by any benchmark operator.** Scores remain the work of
 their respective operators.
 
 ### Note on what is absent
 
-An earlier private build used the Artificial Analysis Intelligence Index, which rates all 30 models
-here rather than 24. It is not in this version because AA's Terms of Use grant personal,
+An earlier private build used the Artificial Analysis Intelligence Index, which rates 41 of the 49
+models here rather than 36. It is not in this version because AA's Terms of Use grant personal,
 non-commercial use only and forbid redistributing content from their site. Individual scores are
 uncopyrightable facts, so the binding constraint is contract rather than copyright — which is why
 removing them is sufficient, and why data taken from primary sources is unaffected. If you want that

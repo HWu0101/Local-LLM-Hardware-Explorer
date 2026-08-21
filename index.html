@@ -700,8 +700,8 @@
     <p class="sub">Pick a machine, or set a budget and let it search 100+ builds for the ones nothing
       else beats. Every model repositions horizontally by how fast it decodes on the selected build, and
       drops into the zero column if it will not load. Click any model for its own price-vs-speed staircase
-      on the right. Hardware is filtered to upgrades that actually move quality or speed. Data 26 Jul 2026,
-      prices re-checked 7 Aug 2026 · sourced in AUD inc GST, switchable to USD.</p>
+      on the right. Hardware is filtered to upgrades that actually move quality or speed. Ratings 19 Aug 2026,
+      prices 21 Aug 2026 · sourced in AUD inc GST, switchable to USD.</p>
 
     <div class="eq">
       <b>t/token</b> = bytes_read × [ f / BW<sub>fast</sub> + (1−f) / BW<sub>slow</sub> ] + overhead
@@ -958,11 +958,12 @@
           'converted figure sits above the US sticker you would compare it against.'
       },
       prices: {
-        name: 'Australian retail prices', asOf: '2026-08-07', pub: true,
+        name: 'Australian retail prices', asOf: '2026-08-21', pub: true,
         licence: 'observed retail listings; facts, not a licensed dataset',
-        url: '', note: 'inc GST. DRAM is the volatile line: server RDIMM re-checked ' +
-          '7 Aug 2026 at A$62/GB, up from A$48, and still rising under AI-server ' +
-          'allocation. A large-memory build is now mostly a memory bill.'
+        url: '', note: 'inc GST. Everything memory-adjacent is still climbing: server ' +
+          'RDIMM at A$62/GB (7 Aug), and on 21 Aug the RTX PRO 6000 went 18,499 -> 24,999 ' +
+          'with the PRO 5000 48GB 8,500 -> 12,999. NVIDIA lifted the PRO 6000 list price ' +
+          'twice in three months. Re-check before deciding anything.'
       },
       arena: {
         name: 'Arena ratings (Bradley-Terry) \u2014 text (style-controlled), WebDev, Agent',
@@ -1004,7 +1005,7 @@
     // matches a 9754 at ~A$7k, though AU distributor RRP for the 12-channel Turin
     // parts spans A$6.3k-13.1k inc GST depending on core count.
     const PR = {
-      gpu4060ti: 400, gpu5060ti: 799, gpu5070ti: 1400, gpu5080: 1660, gpu5090: 6999, gpuPro: 18499,
+      gpu4060ti: 400, gpu5060ti: 799, gpu5070ti: 1400, gpu5080: 1660, gpu5090: 6999, gpuPro: 24999,
       ramPerGB: 18.5, ramPerGBRdimm: 62, trCpu: 6749, trMobo: 1799, xeonCpu: 8000, xeonMobo: 2500,
       // EPYC. The 7002/7003 pair is a used-market figure: these are several
       // generations old and are bought second-hand, which is the only reason a
@@ -1072,7 +1073,13 @@
       'pro6000': { n: 'RTX PRO 6000 96GB', vram: 96, bw: 674, nom: 1792, p: PR.gpuPro },
       'pro4000': { n: 'RTX PRO 4000 24GB', vram: 24, bw: 302, nom: 672, p: 2400, est: 1, pest: 1 },
       'pro4500': { n: 'RTX PRO 4500 32GB', vram: 32, bw: 403, nom: 896, p: 4600, est: 1, pest: 1 },
-      'pro5000': { n: 'RTX PRO 5000 48GB', vram: 48, bw: 605, nom: 1344, p: 8500, est: 1, pest: 1 },
+      // The PRO 5000 pair moved hard in Aug 2026 on the same memory squeeze that took
+      // the PRO 6000 to 24,999: 48GB from 8,500 to 12,999, and the 72GB variant -- same
+      // die, same 1344 GB/s nominal, more VRAM -- arriving at 15,999. At these prices
+      // the 72GB card is 1.23x the 48GB one for 1.5x the capacity, which is the only
+      // reason it belongs on the list.
+      'pro5000': { n: 'RTX PRO 5000 48GB', vram: 48, bw: 605, nom: 1344, p: 12999, est: 1, pest: 1 },
+      'pro5000_72': { n: 'RTX PRO 5000 72GB', vram: 72, bw: 605, nom: 1344, p: 15999, est: 1, pest: 1 },
       '6000ada': { n: 'RTX 6000 Ada 48GB', vram: 48, bw: 432, nom: 960, p: 11000, est: 1, pest: 1 },
       'a6000': { n: 'RTX A6000 48GB', vram: 48, bw: 346, nom: 768, p: 6000, est: 1, pest: 1, used: 1 },
 
@@ -1116,6 +1123,7 @@
       { '5070': 1 }, { '5070': 2 }, { '5060ti': 1 }, { '5060ti': 2 }, { '5070ti': 1 }, { '5070ti': 2 },
       { 'pro4000': 1 }, { 'pro4000': 2 }, { 'pro4500': 1 }, { 'pro4500': 2 },
       { 'pro5000': 1 }, { 'pro5000': 2 }, { 'pro5000': 4 },
+      { 'pro5000_72': 1 }, { 'pro5000_72': 2 }, { 'pro5000_72': 4 },
       { '6000ada': 1 }, { '6000ada': 2 }, { 'a6000': 1 }, { 'a6000': 2 }, { 'a6000': 4 },
       { 'pro6000': 1 }, { 'pro6000': 1, '5080': 1 }, { 'pro6000': 2 }, { 'pro6000': 4 }, { 'pro6000': 8 },
       { 'v100': 1 }, { 'v100': 2 }, { 'v100': 4 },
@@ -1270,7 +1278,7 @@
       '4060ti': 8, '4060ti16': 8, '5060ti': 12, '5070': 18, '4070tis': 20,
       '5070ti': 26, '4080s': 24, '5080': 28, '3090': 16, '4090': 32,
       '5090': 41.4, 'pro6000': 81.7, 'pro4000': 20, 'pro4500': 30,
-      'pro5000': 55, '6000ada': 30, 'a6000': 18,
+      'pro5000': 55, 'pro5000_72': 55, '6000ada': 30, 'a6000': 18,
       // Server parts. Scaled by class off the 5090 anchor; datacentre silicon has
       // far more peak FP16 than llama.cpp extracts, so these are deliberately well
       // below the marketing figure and remain estimates.
@@ -1727,48 +1735,93 @@
       { name: 'Qwen3.5-9B', total: 9.7, active: 9.7, gb: 5.6, g: 'd' },
       { name: 'Gemma 4 12B QAT', total: 12, active: 12, gb: 6.66, g: 'd', meas: { d_5080_cur: 60 } },
       {
-        name: 'gpt-oss-20b', total: 21, active: 3.6, gb: 12, g: 'c', elo: 1317,
-        meas: { d_5080_cur: 205, spark: 83.4, mac: 115.5, d_pro6000_cur: 287, d_5090_cur: 419 }
+        name: 'gpt-oss-20b', total: 21, active: 3.6, gb: 12, g: 'c', elo: 1318, meas: { d_5080_cur: 205, spark: 83.4, mac: 115.5, d_pro6000_cur: 287, d_5090_cur: 419 }
       },
       { name: 'Gemma 4 26B-A4B', total: 25.2, active: 3.8, gb: 14.56, g: 'f', elo: 1438, wd: 1358 },
-      { name: 'Qwen3.5-27B dense', total: 27.8, active: 27.8, gb: 16.1, g: 'd', elo: 1409, wd: 1345 },
+      { name: 'Qwen3.5-27B dense', total: 27.8, active: 27.8, gb: 16.1, g: 'd', elo: 1408, wd: 1345 },
       // No Qwen3.6 open-weight model is on Arena at all. Since 3.6 is reported to be
       // a largely agentic-focused revision of 3.5, the same-size 3.5 sibling's Elo is
       // carried as a PROXY (eloP) rather than dropping the model from the view.
       // Proxies render hollow and are labelled as such — they are not measurements.
-      { name: 'Qwen3.6-27B dense', total: 27.8, active: 27.8, gb: 16.1, g: 'd', eloP: 1409, wdP: 1345 },
-      { name: 'GLM-4.7-Flash', total: 30, active: 3.5, gb: 17.4, g: 'f', elo: 1368 },
-      { name: 'Gemma 4 31B dense', total: 30.7, active: 30.7, gb: 17.8, g: 'd', elo: 1451, wd: 1357, ag: -0.145 },
-      { name: 'Qwen3.5 35B-A3B', total: 36, active: 3, gb: 20.6, g: 'f', elo: 1396, meas: { d_5090_cur: 194 }, wd: 1235 },
+      { name: 'Qwen3.6-27B dense', total: 27.8, active: 27.8, gb: 16.1, g: 'd', eloP: 1408, wdP: 1345 },
+      // Released 14 Aug 2026, Apache 2.0, and the reason this refresh happened: it scores
+      // 52 on AA against 37 for the 3.6 at the same size. Not yet on any Arena board,
+      // so it shows only on the AA lens. Architecturally it is NOT a plain dense
+      // transformer — 64 layers of which only 16 are full attention, the rest Gated
+      // DeltaNet — so its KV cache is roughly a quarter of what kvKB() assumes for a
+      // 27B. Capacity here is therefore PESSIMISTIC at long context.
+      { name: 'Qwen3.8-27B dense', total: 27, active: 27, gb: 16.1, g: 'd', est: 1 },
+      { name: 'GLM-4.7-Flash', total: 30, active: 3.5, gb: 17.4, g: 'f', elo: 1367 },
+      { name: 'Muse Glimmer', total: 30, active: 30, gb: 17.4, g: 'd', elo: 1427, est: 1 },
+      {
+        name: 'Gemma 4 31B dense', total: 30.7, active: 30.7, gb: 17.8, g: 'd', elo: 1451, wd: 1357, ag: -0.145
+      },
+      { name: 'Nemotron 3.5 Lightning', total: 31.6, active: 3.6, gb: 18.3, g: 'f', elo: 1348, est: 1 },
+      {
+        name: 'Qwen3.5 35B-A3B', total: 36, active: 3, gb: 20.6, g: 'f', elo: 1395, meas: { d_5090_cur: 194 }, wd: 1235
+      },
       // Same architecture as Qwen3.5 35B-A3B — 36B total, 3B active — so at Q4 it
       // reads the same bytes and must run at the same speed; only quality differs.
       // A 60 t/s figure measured on the Q6_K build (27.4 GB) was previously pinned
       // here, which wrongly reported a Q6 speed on a Q4 row.
-      { name: 'Qwen3.6 35B-A3B', total: 36, active: 3, gb: 20.6, g: 'f', eloP: 1396, wdP: 1235 },
-      { name: 'Qwen3 Next 80B-A3B', total: 80, active: 3, gb: 46.4, g: 'u', elo: 1401, meas: { halo: 42.7, d_pro6000_cur: 124 } },
-      { name: 'GLM-4.5-Air', total: 106, active: 12, gb: 61.5, g: 'f', elo: 1373, meas: { halo: 22.6, spark: 22.6 } },
+      { name: 'Qwen3.6 35B-A3B', total: 36, active: 3, gb: 20.6, g: 'f', eloP: 1395, wdP: 1235 },
       {
-        name: 'gpt-oss-120b', total: 117, active: 5.1, gb: 63.4, g: 'c', elo: 1352,
-        meas: { halo: 55.6, spark: 58.7, mac: 70.8, d_pro6000_cur: 196 }
+        name: 'Qwen3 Next 80B-A3B', total: 80, active: 3, gb: 46.4, g: 'u', elo: 1401, meas: { halo: 42.7, d_pro6000_cur: 124 }
       },
-      { name: 'Nemotron 3 Super', total: 120, active: 12, gb: 69.6, g: 'f', elo: 1362, meas: { halo: 18.4, spark: 19.9 } },
+      {
+        name: 'GLM-4.5-Air', total: 106, active: 12, gb: 61.5, g: 'f', elo: 1373, meas: { halo: 22.6, spark: 22.6 }
+      },
+      {
+        name: 'gpt-oss-120b', total: 117, active: 5.1, gb: 63.4, g: 'c', elo: 1352, meas: { halo: 55.6, spark: 58.7, mac: 70.8, d_pro6000_cur: 196 }
+      },
       { name: 'Mistral Small 4', total: 119, active: 6.5, gb: 69, g: 'f' },
       {
-        name: 'Qwen3.5 122B-A10B', total: 125, active: 10, gb: 71.22, g: 'f', elo: 1417, wd: 1352,
-        meas: { d_5080_cur: 16.6, d_pro6000_cur: 100.6 }
+        name: 'Nemotron 3 Super', total: 120, active: 12, gb: 69.6, g: 'f', elo: 1360, meas: { halo: 18.4, spark: 19.9 }
       },
+      {
+        name: 'Qwen3.5 122B-A10B', total: 125, active: 10, gb: 71.22, g: 'f', elo: 1417, meas: { d_5080_cur: 16.6, d_pro6000_cur: 100.6 }, wd: 1352
+      },
+      { name: 'Mistral Medium 3.5', total: 128, active: 128, gb: 74.2, g: 'd', elo: 1427, est: 1 },
+      { name: 'Command A+', total: 218, active: 25, gb: 126.4, g: 'f', est: 1 },
+      { name: 'MiniMax-M2.7', total: 230, active: 10, gb: 133, g: 'f', elo: 1416, wd: 1389, ag: -0.125 },
       { name: 'Qwen3-235B-A22B', total: 235, active: 22, gb: 136, g: 'f', elo: 1375 },
-      { name: 'MiniMax-M2.7', total: 230, active: 10, gb: 133, g: 'f', elo: 1417, wd: 1389, ag: -0.125 },
+      { name: 'Solar Open2 250B', total: 250, active: 15, gb: 145, g: 'f', est: 1 },
       { name: 'DeepSeek V4 Flash', total: 284, active: 13, gb: 165, g: 'f', elo: 1436, ag: -0.035 },
+      { name: 'Hunyuan Hy3', total: 295, active: 21, gb: 171, g: 'f', elo: 1458, est: 1 },
+      { name: 'MiMo-V2.5', total: 310, active: 15, gb: 180, g: 'f', elo: 1434, est: 1 },
+      { name: 'Motif 3', total: 314, active: 13.2, gb: 182, g: 'f', est: 1 },
       { name: 'Qwen3.5-397B-A17B', total: 397, active: 17, gb: 230, g: 'f', elo: 1442, wd: 1389 },
-      { name: 'MiniMax-M3', total: 428, active: 23, gb: 248, g: 'f', elo: 1444, wd: 1462, ag: -0.031 },
-      { name: 'Nemotron 3 Ultra', total: 550, active: 55, gb: 319, g: 'f', elo: 1425, ag: -0.135 },
+      { name: 'MiniMax-M3', total: 428, active: 23, gb: 248, g: 'f', elo: 1442, wd: 1462, ag: -0.031 },
+      { name: 'Qwen3-Coder 480B-A35B', total: 480, active: 35, gb: 278, g: 'f', elo: 1388, est: 1 },
+      { name: 'Nemotron 3 Ultra', total: 550, active: 55, gb: 319, g: 'f', elo: 1426, ag: -0.135 },
+      { name: 'Mistral Large 3', total: 675, active: 41, gb: 392, g: 'f', elo: 1414, est: 1 },
       { name: 'DeepSeek V3.2', total: 685, active: 37, gb: 397, g: 'f', elo: 1425, wd: 1303 },
-      { name: 'GLM-5.2', total: 753, active: 40, gb: 418, g: 'f', elo: 1469, meas: { mac512: 14.5 }, wd: 1544, ag: 0.065 },
+      { name: 'A.X-K2', total: 692, active: 33, gb: 401, g: 'f', est: 1 },
+      // The GLM-5 family shares ONE architecture: 744B total, 40B active. Earlier notes
+      // here carried 753B and a 754B figure for 5.1; both are the same model, and 754
+      // looks like a parameter-count artefact rather than a real variant. Holding them
+      // at a common 744/40 also keeps bytes-per-token identical to the previous 753/418
+      // pairing, so the mac512 calibration anchor on 5.2 does not move.
+      { name: 'GLM-5', total: 744, active: 40, gb: 413, g: 'f', elo: 1457, est: 1 },
+      { name: 'GLM-5.1', total: 744, active: 40, gb: 413, g: 'f', elo: 1468, est: 1 },
+      {
+        name: 'GLM-5.2', total: 744, active: 40, gb: 413, g: 'f', elo: 1470, meas: { mac512: 14.5 }, wd: 1544, ag: 0.065
+      },
+      { name: 'GLM-5.3', total: 744, active: 40, gb: 413, g: 'f', elo: 1484, est: 1 },
+      { name: 'K-EXAONE 2.0', total: 750, active: 37, gb: 435, g: 'f', est: 1 },
+      { name: 'Inkling', total: 975, active: 41, gb: 566, g: 'f', elo: 1440, est: 1 },
       { name: 'Kimi K2.7 Code', total: 1000, active: 32, gb: 580, g: 'f', wd: 1461, ag: -0.01 },
-      { name: 'Kimi K2.6', total: 1000, active: 32, gb: 580, g: 'f', elo: 1461, wd: 1496, ag: -0.026 },
-      { name: 'DeepSeek V4 Pro', total: 1600, active: 49, gb: 928, g: 'f', elo: 1457, wd: 1435, ag: -0.012 },
-      { name: 'Kimi K3', total: 2800, active: 50, gb: 1400, g: 'f', elo: 1486, est: 1, wd: 1670, ag: 0.097 }
+      { name: 'Kimi K2.6', total: 1000, active: 32, gb: 580, g: 'f', elo: 1460, wd: 1496, ag: -0.026 },
+      { name: 'MiMo-V2.5-Pro', total: 1020, active: 42, gb: 592, g: 'f', elo: 1467, est: 1 },
+      {
+        name: 'DeepSeek V4 Pro', total: 1600, active: 49, gb: 928, g: 'f', elo: 1458, wd: 1435, ag: -0.012
+      },
+      // AA lists this on its open-weights board; Arena lists `qwen3.8-max` as PROPRIETARY.
+      // The two are reconcilable if the API tier and the released weights are the same
+      // model under different terms, but that is not confirmed, so no Arena rating is
+      // carried here — only the AA score, which is unambiguously for the open build.
+      { name: 'Qwen3.8-Max', total: 2400, active: 95, gb: 1392, g: 'f', est: 1 },
+      { name: 'Kimi K3', total: 2800, active: 50, gb: 1400, g: 'f', elo: 1490, wd: 1670, ag: 0.097, est: 1 }
     ];
 
     // Kernel efficiency by expert granularity. At batch 1 a routed MoE issues
