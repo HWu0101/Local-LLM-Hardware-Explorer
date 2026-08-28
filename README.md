@@ -43,14 +43,28 @@ goes as `1/(1 − f)`, which is why the last few percent of residency are worth 
 Bandwidth figures are **effective batch-1 decode throughput back-calculated from published token
 benchmarks** — never spec sheets, and never streaming rooflines, which are roughly twice what MoE
 decode converts. Against 14 published measurements the model has a leave-one-out median error of
-**5.9%**, worst case **57%**.
+**5.9%**, worst case **46%**.
 
-That worst case was previously quoted as 34%. It was wrong: the harness that produced it cleared the
-calibration cache but left the held-out measurement in place, so `calc()` returned the measurement
-itself for the pair being tested. Under strict leave-one-out the median barely moves (5.3% → 5.9%)
-but the tail is much heavier, and the single worst case — gpt-oss-20b on a 16 GB 5080 — is a genuine
-model weakness rather than an artefact. Treat the median as the useful figure and the tail as a
-warning that a small coarse-MoE model on a small card can be badly under-predicted.
+Both numbers are measured under strict leave-one-out, which an earlier harness was not doing: it
+cleared the calibration cache but left the held-out measurement in place, so `calc()` returned the
+measurement itself for the pair under test and reported a flattering 34% tail. The median barely
+moved when that was fixed (5.3% → 5.9%); the tail did. Treat the median as the useful figure and the
+tail as a warning that a small coarse-MoE model on a small card can be badly under-predicted.
+
+### Residency is split in two
+
+An MoE has weights that are read on *every* token — attention, embeddings, any shared expert — and
+routed experts that are read only when selected. llama.cpp exploits this: `--n-cpu-moe` keeps the
+attention stack on the GPU and pushes experts to system RAM. The model therefore tracks two numbers:
+
+- **`f`** — the fraction of *active bytes* in fast memory. This drives speed.
+- **`fRouted`** — the fraction of the *routed expert file* resident. This drives capacity, the fit
+  colour, and how much has to stream during prefill.
+
+Collapsing those into one number was a real error: on a 16 GB card six models reported `f = 0`,
+i.e. "every byte comes from system RAM", when in practice their attention layers sit on the GPU and
+only the experts stream. Fixing it moved the worst-case leave-one-out error from 57% to 46% and
+brought a user-measured Qwen3.5 122B-A10B on an RTX 5080 from 27% under to 6% under.
 
 Solid dots are published measurements; dashed rings are modelled. Hollow rings are proxy quality
 scores. Each machine's detail panel carries a bottleneck audit — memory capacity, residency, KV
@@ -133,6 +147,16 @@ lens, use AA's own [embed](https://artificialanalysis.ai/embed/llm-leaderboard).
   conversion rate the calibrated cards exhibit (~55% consumer, ~45% RTX PRO); that rule lands within
   ~12% on the two cards where a real measurement exists.
 - Kernel work moves decode benchmarks fast — one RTX PRO 6000 figure gained 43% in five months.
+- **The coarse-vs-fine MoE kernel factor is the thinnest constant here.** Coarse-expert models
+  (gpt-oss) are credited with converting a discrete GPU's bandwidth far better than fine-expert ones.
+  Setting the two equal makes the fit clearly worse (mean leave-one-out error 11.5% → 16.7%), so it
+  stays — but only four of the fourteen anchors test it, and on unified machines it is not exercised
+  at all. gpt-oss-120b really is ~2.5× faster than GLM-4.5-Air on the same Strix Halo, and that much
+  is pure active-parameter count (2.76 GB read per token against 6.96); the extra credit it gets on
+  a discrete card rests on a single benchmark pair.
+- The Apple M5 Ultra effective bandwidth is an estimate at 35% of its 1.2 TB/s nominal. The two Mac
+  anchors here convert very differently — M3 Ultra at 26%, M5 Max at 43% — and no M5 Ultra token
+  benchmark exists yet. Expect this to move.
 - Threadripper and Xeon memory figures are **modelled, not measured**: no published llama.cpp
   MoE-offload token benchmark for those platforms could be found as of 27 July 2026.
 - Tensor-parallel gains assume working peer-to-peer, which GeForce cards do not have.

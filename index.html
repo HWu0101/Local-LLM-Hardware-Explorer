@@ -757,10 +757,13 @@
           <label id="cuNLbl">how many<select id="cuN"></select></label>
           <label id="cuGpu2Lbl">second card<select id="cuGpu2"></select></label>
           <label id="cuN2Lbl">how many<select id="cuN2"></select></label>
+          <label id="cuGpu3Lbl">third card<select id="cuGpu3"></select></label>
+          <label id="cuN3Lbl">how many<select id="cuN3"></select></label>
           <label id="cuRamLbl">system RAM GB<input type="number" id="cuRam" min="16" max="2048" step="16"></label>
           <button id="cuClose" style="padding:6px 12px">remove</button>
         </div>
-        <p class="pm" id="cuOut" style="margin:12px 0 0"></p>
+        <p class="pm" id="cuSlots" style="margin:10px 0 0"></p>
+        <p class="pm" id="cuOut" style="margin:8px 0 0"></p>
       </div>
     </div>
 
@@ -978,7 +981,7 @@
       bench: {
         name: 'Published decode benchmarks (llama.cpp, ik_llama.cpp, vLLM, MLX)',
         asOf: '2026-07-26', pub: true, licence: 'individual measurements are facts; sources cited inline',
-        url: '', note: 'Kernel work moves these fast -- one RTX PRO 6000 figure gained 43% in five months.'
+        url: '', note: 'Kernel work moves these fast -- one RTX PRO 6000 figure gained 43% in five months. ' + 'The Qwen3.5 122B-A10B figure on the 5080 is USER-REPORTED at 21.4 t/s on a Q4 build, replacing an earlier 16.6 that came from an MXFP4 quant and so was never a Q4 number.'
       }
     };
 
@@ -1106,7 +1109,14 @@
       'a100x': { n: 'A100 80GB PCIe', vram: 80, bw: 677, nom: 1935, p: 18000, est: 1, pest: 1, used: 1, srv: 1 },
       'h100': { n: 'H100 80GB PCIe', vram: 80, bw: 714, nom: 2039, p: 42000, est: 1, pest: 1, srv: 1 },
       'h100n': { n: 'H100 NVL 94GB', vram: 94, bw: 1365, nom: 3900, p: 52000, est: 1, pest: 1, srv: 1 },
-      'h200': { n: 'H200 NVL 141GB', vram: 141, bw: 1680, nom: 4800, p: 70000, est: 1, pest: 1, srv: 1 }
+      'h200': { n: 'H200 NVL 141GB', vram: 141, bw: 1680, nom: 4800, p: 70000, est: 1, pest: 1, srv: 1 },
+      // Blackwell Ultra, shipped Jan 2026. 288 GB HBM3e at 8 TB/s nominal -- the
+      // largest single-card pool on this list by a wide margin, and the only part
+      // that holds a 1T-class model at Q4 on two cards. Priced from the 8-GPU rack
+      // it actually ships in: about A$800k a system, so A$100k a GPU. The 0.35 HBM
+      // conversion is the same one every other HBM part here carries; nothing about
+      // batch-1 llama.cpp decode gets near 8 TB/s.
+      'b300': { n: 'B300 288GB (Blackwell Ultra)', vram: 288, bw: 2800, nom: 8000, p: 100000, est: 1, pest: 1, srv: 1 }
     };
     // Buildable arrangements as {model:count}; priced against what you already own.
     // Arrangements offered as upgrades. Kept to combinations someone would actually
@@ -1123,7 +1133,8 @@
       { '5070': 1 }, { '5070': 2 }, { '5060ti': 1 }, { '5060ti': 2 }, { '5070ti': 1 }, { '5070ti': 2 },
       { 'pro4000': 1 }, { 'pro4000': 2 }, { 'pro4500': 1 }, { 'pro4500': 2 },
       { 'pro5000': 1 }, { 'pro5000': 2 }, { 'pro5000': 4 },
-      { 'pro5000_72': 1 }, { 'pro5000_72': 2 }, { 'pro5000_72': 4 },
+      { 'pro5000_72': 1 }, { 'pro5000_72': 2 }, { 'pro5000_72': 4 }, { 'pro5000_72': 8 },
+      { 'b300': 1 }, { 'b300': 2 }, { 'b300': 4 }, { 'b300': 8 },
       { '6000ada': 1 }, { '6000ada': 2 }, { 'a6000': 1 }, { 'a6000': 2 }, { 'a6000': 4 },
       { 'pro6000': 1 }, { 'pro6000': 1, '5080': 1 }, { 'pro6000': 2 }, { 'pro6000': 4 }, { 'pro6000': 8 },
       { 'v100': 1 }, { 'v100': 2 }, { 'v100': 4 },
@@ -1160,8 +1171,8 @@
       if (pl.cpu) return numaBW(CPUP[pl.cpu], CUSTOM.numa || 'unknown').bw;
       return pl.bw;
     }
-    const DEFAULT_CUSTOM = { on: 0, plat: 't', gpu: '5090', n: 2, gpu2: '', n2: 1, ramGB: 256,
-                             numa: 'distribute', kind: 'std', uni: 'spark', uniN: 2 };
+    const DEFAULT_CUSTOM = { on: 0, plat: 't', gpu: '5090', n: 2, gpu2: '', n2: 1, gpu3: '', n3: 0,
+                             ramGB: 256, numa: 'distribute', kind: 'std', uni: 'spark', uniN: 2 };
     let CUSTOM = (function () {
       try {
         return Object.assign({}, DEFAULT_CUSTOM,
@@ -1283,7 +1294,7 @@
       // far more peak FP16 than llama.cpp extracts, so these are deliberately well
       // below the marketing figure and remain estimates.
       'v100': 18, 'a30': 26, 'l4': 14, 'a40': 20, 'l40s': 42,
-      'a100': 55, 'a100x': 60, 'h100': 110, 'h100n': 125, 'h200': 130
+      'a100': 55, 'a100x': 60, 'h100': 110, 'h100n': 125, 'h200': 130, 'b300': 280
     };
 
     // PCIe effective bandwidth, GB/s, by generation at x16.
@@ -1404,6 +1415,25 @@
       m5max: {
         n: 'MacBook Pro M5 Max', meta: '128GB unified \u00b7 614 GB/s \u00b7 40-core \u00b7 buyable new',
         vram: 128, bw: 262, res: 16, pfTF: 8.7, price: 9999,
+        link: 10, linkN: 'Thunderbolt 5', hopUs: 200, maxN: 4
+      },
+      // Announced 25 Aug 2026; ships 22 Sep, and the 512 GB build slips to October.
+      // 1.2 TB/s nominal, 50% over the M3 Ultra, from two M5 Max dies on UltraFusion.
+      //
+      // The effective figure is the weakest number here. This table's two Mac anchors
+      // convert very differently -- the M3 Ultra lands at 26% of nominal (214 of 819)
+      // and the M5 Max at 43% (262 of 614) -- and no M5 Ultra benchmark exists yet.
+      // 35% is a deliberate midpoint: the M5 generation converts better than M3, but
+      // an Ultra pays cross-die traffic on UltraFusion that a single Max die does not.
+      // Flagged est; expect it to move once someone runs llama.cpp on one.
+      m5ultra: {
+        n: 'Mac Studio M5 Ultra 256GB', meta: 'M5 Ultra · 256GB unified · 1.2 TB/s · 80-core GPU',
+        vram: 256, bw: 420, res: 16, pfTF: 17.4, price: 28699, est: 1,
+        link: 10, linkN: 'Thunderbolt 5', hopUs: 200, maxN: 4
+      },
+      m5ultra512: {
+        n: 'Mac Studio M5 Ultra 512GB', meta: 'M5 Ultra · 512GB unified · 1.2 TB/s · Oct 2026',
+        vram: 512, bw: 420, res: 16, pfTF: 17.4, price: 40000, est: 1, pest: 1,
         link: 10, linkN: 'Thunderbolt 5', hopUs: 200, maxN: 4
       },
       mac256: {
@@ -1709,17 +1739,32 @@
     // The card list the custom builder currently describes, clamped to the slots the
     // chosen platform actually has. Card A is filled first, so raising the platform's
     // slot count never silently reorders what you asked for.
+    // The card rows of the custom builder, as [{k, n}]. THREE rows now, not the
+    // hardcoded pair this used to be: a workstation or server board with eight slots
+    // could never be filled through a two-card form, which left every 4- and 8-GPU
+    // arrangement in GSETS reachable by the catalogue but not by hand.
+    const CUROWS = [['gpu', 'n'], ['gpu2', 'n2'], ['gpu3', 'n3']];
+    function customRows() {
+      return CUROWS.map(function (r) {
+        return { gk: r[0], nk: r[1], k: CUSTOM[r[0]], n: CUSTOM[r[1]] | 0 };
+      });
+    }
     function customCards() {
       const slots = cplatSlots(CUSTOM.plat), c = {};
       let used = 0;
-      const put = (k, n) => {
-        if (!k || !GPUC[k]) return;
-        const take = Math.max(0, Math.min(n | 0, slots - used)); if (take) { c[k] = (c[k] || 0) + take; used += take; }
-      };
-      put(CUSTOM.gpu, CUSTOM.n || 1);
-      put(CUSTOM.gpu2, CUSTOM.n2 || 0);
+      for (const r of customRows()) {
+        if (!r.k || !GPUC[r.k]) continue;
+        const take = Math.max(0, Math.min(r.n, slots - used));
+        if (take) { c[r.k] = (c[r.k] || 0) + take; used += take; }
+      }
       if (!used) c[GPUC[CUSTOM.gpu] ? CUSTOM.gpu : '5090'] = 1;
       return c;
+    }
+    // Slots the current selection occupies, against what the board offers.
+    function customSlotUse() {
+      const c = customCards();
+      return { used: Object.keys(c).reduce(function (t, k) { return t + c[k]; }, 0),
+               total: cplatSlots(CUSTOM.plat) };
     }
     buildHW();
 
@@ -1779,7 +1824,7 @@
         name: 'Nemotron 3 Super', total: 120, active: 12, gb: 69.6, g: 'f', elo: 1360, meas: { halo: 18.4, spark: 19.9 }
       },
       {
-        name: 'Qwen3.5 122B-A10B', total: 125, active: 10, gb: 71.22, g: 'f', elo: 1417, meas: { d_5080_cur: 16.6, d_pro6000_cur: 100.6 }, wd: 1352
+        name: 'Qwen3.5 122B-A10B', total: 125, active: 10, gb: 71.22, g: 'f', elo: 1417, meas: { d_5080_cur: 21.4, d_pro6000_cur: 100.6 }, wd: 1352
       },
       { name: 'Mistral Medium 3.5', total: 128, active: 128, gb: 74.2, g: 'd', elo: 1427, est: 1 },
       { name: 'Command A+', total: 218, active: 25, gb: 126.4, g: 'f', est: 1 },
@@ -1965,6 +2010,28 @@
       // measurement can be carried across contexts instead of being asserted at all
       // of them. Without the second evaluation a short-context benchmark gets fitted
       // against a long-context model and the calibration constant explodes.
+      // Non-routed weights: attention, embeddings, any shared expert. They are read
+      // on EVERY token, so by definition they are part of the active set and can
+      // never exceed it -- which the old flat "8% of the file" rule violated for 27
+      // of the 32 MoEs here. Kimi K3 came out at 112 GB of non-routed against 25 GB
+      // of total active bytes, an impossibility that made the model demand 112 GB of
+      // VRAM before a single expert could be resident. Cap it against the active set.
+      const nonRouted = Math.min(gb * 0.08, 0.35 * bytes);
+      const routedFile = gb - nonRouted;
+      const routedActive = Math.max(0, bytes - nonRouted);
+
+      // Residency for a given KV footprint. Called twice: once at the selected
+      // context, once at the context the published benchmarks were run at, so a
+      // measurement can be carried across contexts instead of being asserted at all
+      // of them. Without the second evaluation a short-context measurement gets
+      // fitted against a long-context model and the calibration constant explodes.
+      //
+      // Returns the fraction of ACTIVE BYTES in fast memory, which is what time()
+      // needs. The old version returned the fraction of the ROUTED FILE resident and
+      // fed that straight into the byte split -- two different quantities. On a 16 GB
+      // card that reported f = 0 for six models, i.e. "every byte comes from system
+      // RAM", when in practice llama.cpp puts the attention layers on the GPU and
+      // only the experts on the CPU. That is the whole point of --n-cpu-moe.
       const resid = kv => {
         if (hw.unified) return 1;
         // A dense model is split by LAYER (-ngl), so the resident fraction is simply
@@ -1977,12 +2044,31 @@
           const free = hw.vram - DISP - kv;
           return free <= 0 ? 0 : Math.min(1, free / gb);
         }
-        const routed = gb * 0.92;           // routed experts ≈ 92% of an MoE file
-        const nonRouted = gb - routed;
-        const free = hw.vram - DISP - nonRouted - kv;
-        return free <= 0 ? 0 : Math.min(1, free / routed);
+        const free = hw.vram - DISP - kv;
+        if (free <= 0) return 0;
+        // Attention goes on the card first -- it is small, it is read every token,
+        // and every offload guide says to keep it there. Experts take what is left.
+        const nrRes = Math.min(nonRouted, free);
+        const fRouted = routedFile > 0 ? Math.min(1, Math.max(0, free - nrRes) / routedFile) : 1;
+        return bytes > 0 ? (nrRes + routedActive * fRouted) / bytes : 0;
+      };
+      // Routed-expert residency, kept separate because it is what CAPACITY questions
+      // turn on. f above drives speed; this drives the fit label and the audit, so a
+      // model with its attention resident and no experts still reads as "mostly on
+      // CPU" rather than being promoted to "partial" by the attention alone.
+      const residRouted = kv => {
+        if (hw.unified) return 1;
+        if (!isMoE) return resid(kv);
+        const free = hw.vram - DISP - kv - nonRouted;
+        return free <= 0 ? 0 : Math.min(1, free / routedFile);
       };
       const f = resid(KV);
+      const fRouted = residRouted(KV);
+      // Resident FILE bytes, which is a different quantity from either fraction
+      // above and the one prefill needs: streaming an expert to the GPU moves the
+      // whole tensor, not just the slice this token happens to read.
+      const residFileGB = hw.unified ? gb
+        : Math.min(nonRouted, Math.max(0, hw.vram - DISP - KV)) + routedFile * fRouted;
 
       // NOTE: a residency-dependent efficiency (eff rising with f, on the theory
       // that a fully resident model lets fused MoE kernels run clean) was tried and
@@ -2011,9 +2097,10 @@
       const tBench = time(resid(kvKB(m) * BENCH_CTX / 1e6 + 1));
       const tps = measured ? m.meas[hw.id] * (tBench / t) : (1 / t) * calib(m);
 
-      const fit = f >= 0.95 ? 'fit' : (f >= 0.15 ? 'part' : 'cpu');
+      const fit = fRouted >= 0.95 ? 'fit' : (fRouted >= 0.15 ? 'part' : 'cpu');
       return {
-        fit, f, tps, bytes, measured, pool, calibrated: !measured && calib(m) !== 1,
+        fit, f, fRouted, nonRouted, routedFile, residFileGB, tps, bytes, measured, pool,
+        calibrated: !measured && calib(m) !== 1,
         atBench: measured ? m.meas[hw.id] : null, ctxCost: tBench / t,
         modelled: (1 / t) * calib(m), share: [tFast / t, tSlow / t, hw.ovh / t]
       };
@@ -2046,8 +2133,13 @@
       // Unified-memory machines have no link to cross: weights are already where
       // the compute is, so prefill is purely compute-bound.
       const unified = !!hw.unified;
-      const bytesTotal = m.gb;
-      const offloadGB = unified ? 0 : Math.max(0, bytesTotal * (1 - r.f));
+      // What actually crosses the link per pass: the part of the FILE that is not on
+      // the card. This used to be file x (1 - f), which was only ever right while f
+      // meant "fraction of the file resident". It now means "fraction of the ACTIVE
+      // BYTES resident", and multiplying a file size by an active-byte fraction is
+      // a category error -- it over-reported the transfer for every model whose
+      // attention is resident but whose experts are not, which is most of them.
+      const offloadGB = unified ? 0 : Math.max(0, m.gb - (r.residFileGB || 0));
 
       // Resident compute. On a CPU-only or unified box, fall back to a bandwidth
       // proxy rather than asserting a FLOPS figure we do not have.
@@ -2073,7 +2165,7 @@
       // Confidence is about evidence, not arithmetic. Nothing here is measured on
       // the selected machine; the resident path leans on two anchors and the
       // offloaded path on one user-reported curve.
-      const conf = unified || r.f >= 0.95 ? 'estimate' : 'speculative';
+      const conf = unified || r.fRouted >= 0.95 ? 'estimate' : 'speculative';
       // Hand back the terms as well as the total. The panel re-prices the transfer
       // term at llama.cpp's DEFAULT ubatch, because the gap between the two is the
       // single most common reason a real machine misses this number by a multiple.
@@ -2821,7 +2913,7 @@
       else if (hw.unified) add('PCIe', 'green', 'no discrete GPU',
         'Nothing crosses a peripheral bus at any point.');
       else if (gpus <= 1) add('PCIe', 'green', 'one card \u00b7 x16',
-        r.f >= 0.95 ? 'Weights are loaded once and stay there. Decode moves nothing across the bus.'
+        r.fRouted >= 0.95 ? 'Weights are loaded once and stay there. Decode moves nothing across the bus.'
           : 'Offloaded experts are COMPUTED on the CPU, not streamed to the GPU, so only activations ' +
           'cross \u2014 a few KB per layer. This is why llama.cpp --n-cpu-moe beats a UVA weight-streaming ' +
           'scheme by roughly an order of magnitude.');
@@ -3347,10 +3439,11 @@ VRAM. NVIDIA extended memory price rises to mainstream cards on 23 Jul 2026.</p>
     // and no DIMMs to choose.
     function cuKindSync() {
       const uni = (CUSTOM.kind || 'std') === 'uni';
-      ['cuPlatLbl', 'cuGpuLbl', 'cuNLbl', 'cuGpu2Lbl', 'cuN2Lbl', 'cuRamLbl'].forEach(id => {
+      ['cuPlatLbl', 'cuGpuLbl', 'cuNLbl', 'cuGpu2Lbl', 'cuN2Lbl', 'cuGpu3Lbl', 'cuN3Lbl',
+       'cuRamLbl'].forEach(id => {
         const el = $(id); if (el) el.style.display = uni ? 'none' : '';
       });
-      if (uni) $('cuNumaLbl').style.display = 'none';
+      if (uni) { $('cuNumaLbl').style.display = 'none'; const sl = $('cuSlots'); if (sl) sl.innerHTML = ''; }
       $('cuUniLbl').style.display = uni ? '' : 'none';
       $('cuUni').innerHTML = Object.keys(UNI).map(k => '<option value="' + k + '"' +
         (k === CUSTOM.uni ? ' selected' : '') + '>' + UNI[k].n + '</option>').join('');
@@ -3378,13 +3471,30 @@ VRAM. NVIDIA extended memory price rises to mainstream cards on 23 Jul 2026.</p>
       $('cuPlat').innerHTML = Object.keys(CPLAT).map(k => '<option value="' + k + '"' +
         (k === CUSTOM.plat ? ' selected' : '') + '>' + (k === 'd' ? myCpu().n.split(' — ')[0] +
           ' (' + myCpu().slots + ' slots)' : CPLAT[k].n) + '</option>').join('');
-      $('cuGpu').innerHTML = cards(CUSTOM.gpu);
       const cslots = cplatSlots(CUSTOM.plat);
-      $('cuN').innerHTML = counts(Math.max(1, nA), 1, cslots);
-      $('cuGpu2').innerHTML = '<option value="">none</option>' + cards(CUSTOM.gpu2);
-      // The second card can only claim slots the first has not taken.
-      $('cuN2').innerHTML = counts(nB, 0, Math.max(0, cslots - Math.max(1, nA)));
-      $('cuN2').disabled = !CUSTOM.gpu2;
+      // Each row is offered only the slots the rows above it have not claimed, so the
+      // three dropdowns together can never overcommit the board.
+      let claimed = 0;
+      customRows().forEach(function (r, i) {
+        const sel = $(i ? 'cuGpu' + (i + 1) : 'cuGpu');
+        const cnt = $(i ? 'cuN' + (i + 1) : 'cuN');
+        if (!sel || !cnt) return;
+        sel.innerHTML = (i ? '<option value="">none</option>' : '') + cards(r.k);
+        const lo = i ? 0 : 1;
+        const room = Math.max(lo, cslots - claimed);
+        const have = Math.max(lo, Math.min(r.n, room));
+        cnt.innerHTML = counts(have, lo, room);
+        cnt.disabled = i > 0 && !r.k;
+        if (r.k && GPUC[r.k]) claimed += have;
+      });
+      const su = customSlotUse();
+      const slotEl = $('cuSlots');
+      if (slotEl) slotEl.innerHTML = '<b>' + su.used + ' of ' + su.total + ' slots</b> used on ' +
+        (CUSTOM.plat === 'd' ? myCpu().n.split(' \u2014 ')[0] : (CPLAT[CUSTOM.plat] || CPLAT.d).n) +
+        (su.used >= su.total
+          ? ' \u2014 board full. More cards needs a platform with more slots.'
+          : ' \u2014 ' + (su.total - su.used) + ' free. Mixed models layer-split; identical ones ' +
+            'can also run tensor-parallel on dense models.');
       const cpl = CPLAT[CUSTOM.plat] || CPLAT.d;
       const multiSock = cpl.cpu && (CPUP[cpl.cpu].sock || 1) > 1;
       $('cuNumaLbl').style.display = multiSock ? '' : 'none';
@@ -3440,15 +3550,22 @@ VRAM. NVIDIA extended memory price rises to mainstream cards on 23 Jul 2026.</p>
       CUSTOM.uniN = Math.max(1, Math.min(UNI[CUSTOM.uni].maxN || 1, +$('cuUniN').value || 1));
       const slots = cplatSlots($('cuPlat').value);
       CUSTOM.plat = $('cuPlat').value;
-      CUSTOM.gpu = $('cuGpu').value;
-      CUSTOM.n = Math.max(1, Math.min(+$('cuN').value || 1, slots));
-      CUSTOM.gpu2 = $('cuGpu2').value;
-      CUSTOM.n2 = CUSTOM.gpu2 ? Math.max(0, Math.min(+$('cuN2').value || 0, slots - CUSTOM.n)) : 0;
+      let left = slots;
+      CUROWS.forEach(function (row, i) {
+        const gk = row[0], nk = row[1];
+        const sel = $(i ? 'cuGpu' + (i + 1) : 'cuGpu');
+        const cnt = $(i ? 'cuN' + (i + 1) : 'cuN');
+        CUSTOM[gk] = sel ? sel.value : '';
+        const lo = i ? 0 : 1;
+        const want = cnt ? (+cnt.value || lo) : lo;
+        CUSTOM[nk] = (i && !CUSTOM[gk]) ? 0 : Math.max(lo, Math.min(want, Math.max(lo, left)));
+        if (CUSTOM[gk] && GPUC[CUSTOM[gk]]) left -= CUSTOM[nk];
+      });
       CUSTOM.numa = $('cuNuma').value in NUMA ? $('cuNuma').value : 'unknown';
       CUSTOM.ramGB = Math.max(16, +$('cuRam').value || 128);
       customSave(); buildHW(); cur = 'custom'; customFill(); render();
     }
-    ['cuPlat', 'cuGpu', 'cuN', 'cuGpu2', 'cuN2', 'cuRam', 'cuNuma',
+    ['cuPlat', 'cuGpu', 'cuN', 'cuGpu2', 'cuN2', 'cuGpu3', 'cuN3', 'cuRam', 'cuNuma',
      'cuKind', 'cuUni', 'cuUniN'].forEach(id => { const el = $(id); if (el) el.onchange = customApply; });
     if ($('cuClose')) $('cuClose').onclick = () => {
       CUSTOM.on = 0; customSave(); buildHW();
