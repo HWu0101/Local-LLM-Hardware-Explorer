@@ -324,6 +324,45 @@
     #path.hov .step { opacity: .22; transition: opacity .12s }
     #path.hov .step.up { opacity: 1 }
     #path .step { cursor: pointer }
+    /* The custom builder's GPU list. One row per card model, added and removed by
+       the buttons rather than by a fixed set of controls that go dead when the
+       board fills up. */
+    #cuGpuWrap { margin-top: 12px }
+    .gpurow { display: flex; gap: 10px 14px; align-items: flex-end; margin-bottom: 7px;
+      flex-wrap: wrap; border-left: 3px solid transparent; padding-left: 10px;
+      transition: border-color .12s }
+    .gpurow label { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px;
+      color: var(--ink3); flex: 0 0 auto }
+    /* These rows are generated outside .cfg, so they have to carry the same control
+       styling themselves -- without it the selects render unstyled. And width, never
+       flex-basis: inside a column-direction label a flex basis sets the HEIGHT, which
+       turned the card picker into a 260px-tall list box. */
+    .gpurow select {
+      font: inherit; font-size: 13px; padding: 5px 7px; border-radius: var(--radius);
+      border: 1px solid var(--line2); background: var(--bg); color: var(--ink)
+    }
+    .gpurow .gsel { width: 340px; max-width: 100% }
+    .gpurow .gcnt { width: 78px }
+    .gpurow button { padding: 5px 10px; line-height: 1; align-self: flex-end }
+    /* Cards that can share a coherent link get a green edge. Adjacent rows form one
+       continuous bar, which is the point: it shows at a glance which of the cards in
+       the list are able to talk to each other. */
+    .gpurow.nvl { border-left-color: var(--fit) }
+    .gpurow.nvl.off { border-left-color: var(--ink3) }
+    /* A group of linked cards is drawn as ONE unbroken line down the left of every
+       row it covers, which is the whole point of the indicator: it shows at a glance
+       how far the fabric reaches. */
+    .gpurow.nvl-cont { margin-bottom: 0; padding-bottom: 7px }
+    .gpurow .nvltag { font-size: 10.5px; color: var(--fit); align-self: flex-end;
+      padding-bottom: 7px; letter-spacing: .3px; white-space: nowrap }
+    .gpurow.off .nvltag { color: var(--ink3); text-decoration: line-through }
+    #cuNvlWrap { margin-left: 14px; font-size: 12px; color: var(--ink2);
+      display: inline-flex; align-items: center; gap: 6px }
+    #cuGpuWrap, #rigGpuWrap { margin-top: 12px }
+    #cuAdd, #rigAdd { padding: 6px 12px; margin-top: 2px }
+    #cuAdd[disabled], #rigAdd[disabled] { opacity: .4; cursor: not-allowed }
+    #cuNvlWrap, #rigNvlWrap { margin-left: 14px; font-size: 12px; color: var(--ink2);
+      display: inline-flex; align-items: center; gap: 6px }
     /* the slot held open for a staircase pick */
     .hw.pick { border-style: dashed; border-color: var(--ink3) }
     #path .step .hit { fill: transparent; stroke: none }
@@ -719,15 +758,20 @@
           </select></label>
         <label id="uniLbl" style="display:none">machine<select id="cfgUni"></select></label>
         <label id="uniNLbl" style="display:none">how many<select id="cfgUniN"></select></label>
-        <label id="lblGpu">graphics card<select id="cfgGpu"></select></label>
-        <label id="lblSpare">second card<select id="cfgSpare"></select></label>
         <label id="lblRam">system RAM<input type="number" id="cfgRam" min="8" max="2048" step="8"></label>
         <label id="lblCpu">CPU platform<select id="cfgCpu"></select></label>
         <label id="numaLbl" style="display:none">NUMA policy<select id="cfgNuma"></select></label>
         <label id="lblMts">RAM speed MT/s<input type="number" id="cfgMts" min="2000" max="9000" step="100"></label>
         <button id="cfgReset" style="padding:6px 12px">reset</button>
       </div>
-      <p class="pm" id="cfgOut" style="margin:12px 0 0"></p>
+      <div id="rigGpuWrap">
+        <div id="rigGpuList"></div>
+        <button id="rigAdd" type="button">+ add GPU</button>
+        <label id="rigNvlWrap"><input type="checkbox" id="rigNvl" checked>
+          NVLink / NVSwitch between matching cards</label>
+      </div>
+      <p class="pm" id="rigSlots" style="margin:10px 0 0"></p>
+      <p class="pm" id="cfgOut" style="margin:8px 0 0"></p>
     </div>
 
     <h2>Upgrades that change something</h2>
@@ -753,14 +797,14 @@
           <label id="cuUniNLbl" style="display:none">how many<select id="cuUniN"></select></label>
           <label id="cuPlatLbl">platform<select id="cuPlat"></select></label>
           <label id="cuNumaLbl" style="display:none">NUMA policy<select id="cuNuma"></select></label>
-          <label id="cuGpuLbl">graphics card<select id="cuGpu"></select></label>
-          <label id="cuNLbl">how many<select id="cuN"></select></label>
-          <label id="cuGpu2Lbl">second card<select id="cuGpu2"></select></label>
-          <label id="cuN2Lbl">how many<select id="cuN2"></select></label>
-          <label id="cuGpu3Lbl">third card<select id="cuGpu3"></select></label>
-          <label id="cuN3Lbl">how many<select id="cuN3"></select></label>
           <label id="cuRamLbl">system RAM GB<input type="number" id="cuRam" min="16" max="2048" step="16"></label>
           <button id="cuClose" style="padding:6px 12px">remove</button>
+        </div>
+        <div id="cuGpuWrap">
+          <div id="cuGpuList"></div>
+          <button id="cuAdd" type="button">+ add GPU</button>
+          <label id="cuNvlWrap"><input type="checkbox" id="cuNvl" checked>
+            NVLink / NVSwitch between matching cards</label>
         </div>
         <p class="pm" id="cuSlots" style="margin:10px 0 0"></p>
         <p class="pm" id="cuOut" style="margin:8px 0 0"></p>
@@ -1147,7 +1191,32 @@
       { 'h100n': 1 }, { 'h100n': 2 }, { 'h100n': 4 },
       { 'h200': 1 }, { 'h200': 2 }, { 'h200': 4 }, { 'h200': 8 }
     ];
-    const TPF = { 2: 1.60, 4: 2.40, 8: 3.00 };   // tensor-parallel gain, dense + identical cards only
+    // Tensor-parallel gain over PCIe. Sub-linear because every layer ends in an
+    // AllReduce that the bus has to carry, and at batch 1 there is almost no compute
+    // to hide it behind.
+    const TPF = { 2: 1.60, 4: 2.40, 8: 3.00 };
+
+    // Tensor-parallel gain when the cards share a COHERENT link -- NVLink bridges on
+    // the older workstation parts, NVSwitch on an HGX board. The AllReduce still
+    // happens, but a hidden state is single-digit KB and NVLink round-trips in a few
+    // microseconds rather than the tens PCIe needs, so the per-layer cost stops being
+    // the thing that decides the answer. Closer to linear, still not linear: the
+    // reduce is serialised against the layer whatever the wire.
+    const TPF_NVL = { 2: 1.85, 4: 3.40, 8: 6.00 };
+
+    // Max GPUs that can be joined by a coherent link, per card. Absent = PCIe only.
+    // Consumer Blackwell has no NVLink at all, and neither does the RTX PRO 6000 --
+    // the 3090 is the last GeForce with a bridge, which is a large part of why used
+    // 3090 pairs keep turning up in this kind of build.
+    const NVL = {
+      '3090': 2, 'a6000': 2, '6000ada': 0,
+      'a100': 2, 'a100x': 2, 'h100': 2, 'h100n': 2, 'h200': 2,
+      // HGX B300: eight GPUs on NVSwitch, all-to-all, which is what the A$800k buys
+      // beyond the silicon itself. This is the only entry here that is a whole
+      // fabric rather than a bridge between a pair.
+      'b300': 8
+    };
+    const nvlMax = k => NVL[k] || 0;
 
     // Platforms the custom-build card can sit on. bw is the effective system-memory
     // figure, matched to the fixed builds above; null means derive it from the RAM
@@ -1171,19 +1240,46 @@
       if (pl.cpu) return numaBW(CPUP[pl.cpu], CUSTOM.numa || 'unknown').bw;
       return pl.bw;
     }
-    const DEFAULT_CUSTOM = { on: 0, plat: 't', gpu: '5090', n: 2, gpu2: '', n2: 1, gpu3: '', n3: 0,
+    // gpus is the list the builder edits: [{k, n}], up to CU_MAX_ROWS entries. The
+    // old gpu/n/gpu2/n2 keys are kept only so a saved config from before this change
+    // still loads; migrateGpus() folds them in and they are never written again.
+    const CU_MAX_ROWS = 8;
+    const DEFAULT_CUSTOM = { on: 0, plat: 't', gpus: [{ k: '5090', n: 2 }], nvlink: 1,
                              ramGB: 256, numa: 'distribute', kind: 'std', uni: 'spark', uniN: 2 };
+    // Absent means on: a saved config from before the toggle existed should keep the
+    // link, not silently lose it.
+    const nvlOn = () => CUSTOM.nvlink !== 0;
+    // Fold a pre-list config (gpu/n, gpu2/n2, gpu3/n3) into the array form, and
+    // guarantee the array is always present, non-empty and within bounds.
+    function migrateGpus(c) {
+      if (!Array.isArray(c.gpus) || !c.gpus.length) {
+        const rows = [];
+        for (const p of [['gpu', 'n'], ['gpu2', 'n2'], ['gpu3', 'n3']])
+          if (c[p[0]] && GPUC[c[p[0]]] && (c[p[1]] | 0) > 0)
+            rows.push({ k: c[p[0]], n: c[p[1]] | 0 });
+        c.gpus = rows.length ? rows : [{ k: '5090', n: 2 }];
+      }
+      c.gpus = c.gpus.filter(r => r && GPUC[r.k]).slice(0, CU_MAX_ROWS)
+        .map(r => ({ k: r.k, n: Math.max(1, r.n | 0) }));
+      if (!c.gpus.length) c.gpus = [{ k: '5090', n: 1 }];
+      delete c.gpu; delete c.n; delete c.gpu2; delete c.n2; delete c.gpu3; delete c.n3;
+      return c;
+    }
     let CUSTOM = (function () {
       try {
-        return Object.assign({}, DEFAULT_CUSTOM,
-          JSON.parse(localStorage.getItem('custom') || '{}'));
-      } catch (e) { return Object.assign({}, DEFAULT_CUSTOM); }
+        return migrateGpus(Object.assign({}, DEFAULT_CUSTOM,
+          JSON.parse(localStorage.getItem('custom') || '{}')));
+      } catch (e) { return migrateGpus(Object.assign({}, DEFAULT_CUSTOM)); }
     })();
 
     // One GPU arrangement, described as {model: count}. Shared by the catalogue and
     // by the custom builder so a hand-rolled machine is costed and modelled by
     // exactly the same rules as a listed one.
-    function gpuSet(c, owned) {
+    // nvlOff opts OUT of the coherent link. Default is ON for every card that has
+    // one -- an NVLink bridge or an NVSwitch board is a property of the hardware, so
+    // the model should assume it works and let the user say otherwise (bridge not
+    // fitted, driver refuses, cards in different root complexes).
+    function gpuSet(c, owned, nvlOff) {
       owned = owned || {};
       const ks = Object.keys(c).filter(k => c[k] > 0 && GPUC[k]);
       const vram = ks.reduce((t, k) => t + GPUC[k].vram * c[k], 0);
@@ -1217,18 +1313,28 @@
       // identical group can still run TP with the odd card left out, so carry that
       // subset -- otherwise adding a spare card to 2x5090 would silently remove the
       // tensor-parallel option that made it good at dense models in the first place.
+      // A group of identical cards can run tensor-parallel. Whether it is worth
+      // doing on an MoE depends entirely on whether they share a coherent link.
       let tpSet = null;
       for (const k of ks) {
         if (c[k] < 2 || !TPF[c[k]]) continue;
-        const cand = { vram: GPUC[k].vram * c[k], bw: GPUC[k].bw, f: TPF[c[k]] };
+        const nvl = !nvlOff && c[k] <= nvlMax(k);
+        const cand = { vram: GPUC[k].vram * c[k], bw: GPUC[k].bw,
+                       f: (nvl ? TPF_NVL : TPF)[c[k]], nvl: nvl };
         if (!tpSet || cand.vram * cand.f > tpSet.vram * tpSet.f) tpSet = cand;
       }
+      const soloK = ks.length === 1 ? ks[0] : null;
+      const tpNvl = soloK ? (!nvlOff && c[soloK] >= 2 && c[soloK] <= nvlMax(soloK)) : false;
+      // Capability, independent of the opt-out, so the UI can show the indicator
+      // even while the link is switched off.
+      const nvlAble = ks.some(k => c[k] >= 2 && c[k] <= nvlMax(k));
       return {
         k: ks.map(k => k + (c[k] > 1 ? 'x' + c[k] : '')).join('_'), n: nm, s: nm, mine: mine, c: c,
         vram: vram, bw: bw, slots: slots, p: price,
         pfKey: pfKey, pfTF: pfTF, pfBest: (PFTF[pfCard] || 20), pfBestVram: GPUC[pfCard].vram, srv: srv,
         alt: ks.length > 1 ? { vram: GPUC[fast].vram, bwFast: GPUC[fast].bw } : null,
-        tp: (ks.length === 1 && c[ks[0]] >= 2) ? TPF[c[ks[0]]] : null,
+        tp: (soloK && c[soloK] >= 2) ? (tpNvl ? TPF_NVL : TPF)[c[soloK]] : null,
+        tpNvl: tpNvl, nvlAble: nvlAble, nvlMax: soloK ? nvlMax(soloK) : 0,
         tpSet: (ks.length > 1 && tpSet) ? tpSet : null
       };
     }
@@ -1378,7 +1484,8 @@
     }
 
     const DEFAULT_RIG = {
-      gpu: '5080', spare: '', cpu: 'arrow', numa: 'unknown', ramGB: 96, ramCh: 2, ramMTs: 6000,
+      gpus: [{ k: '5080', n: 1 }], nvlink: 1,
+      cpu: 'arrow', numa: 'unknown', ramGB: 96, ramCh: 2, ramMTs: 6000,
       kind: 'std', uni: 'spark', uniN: 1
     };
     // What the machine is holding before a model loads. This used to be split by OS,
@@ -1515,12 +1622,46 @@
       return 230;
     }
     const kvGB = m => kvKB(m) * CTX / 1e6;
+    // Your rig is a list of cards for the same reason the custom build is: two
+    // fields could not describe a four-card workstation, and plenty of people who
+    // would use this page own one. Old saved configs carried gpu + spare; fold them
+    // in once and never write them again.
+    function migrateRigGpus(c) {
+      if (!Array.isArray(c.gpus) || !c.gpus.length) {
+        const rows = [];
+        if (c.gpu && GPUC[c.gpu]) rows.push({ k: c.gpu, n: 1 });
+        if (c.spare && GPUC[c.spare]) {
+          const same = rows.find(r => r.k === c.spare);
+          if (same) same.n += 1; else rows.push({ k: c.spare, n: 1 });
+        }
+        c.gpus = rows.length ? rows : [{ k: '5080', n: 1 }];
+      }
+      c.gpus = c.gpus.filter(r => r && GPUC[r.k]).slice(0, CU_MAX_ROWS)
+        .map(r => ({ k: r.k, n: Math.max(1, r.n | 0) }));
+      if (!c.gpus.length) c.gpus = [{ k: '5080', n: 1 }];
+      delete c.gpu; delete c.spare;
+      return c;
+    }
     let RIG = (function () {
       try {
-        return Object.assign({}, DEFAULT_RIG,
-          JSON.parse(localStorage.getItem('rig') || '{}'));
-      } catch (e) { return Object.assign({}, DEFAULT_RIG); }
+        return migrateRigGpus(Object.assign({}, DEFAULT_RIG,
+          JSON.parse(localStorage.getItem('rig') || '{}')));
+      } catch (e) { return migrateRigGpus(Object.assign({}, DEFAULT_RIG)); }
     })();
+    // {model: count} for everything you already own, which is what pricing nets off.
+    const rigOwned = () => {
+      const o = {};
+      for (const r of (RIG.gpus || [])) if (GPUC[r.k]) o[r.k] = (o[r.k] || 0) + r.n;
+      return o;
+    };
+    // The card the upgrade filter compares against: the biggest thing you own.
+    const rigPrimary = () => {
+      const ks = Object.keys(rigOwned());
+      if (!ks.length) return '5080';
+      return ks.slice().sort((a, b) =>
+        (GPUC[b].vram - GPUC[a].vram) || (GPUC[b].bw - GPUC[a].bw))[0];
+    };
+    const rigNvlOn = () => RIG.nvlink !== 0;
 
     // Consumer dual-channel converts ~87% of theoretical into tokens. Wide server
     // buses convert far less and are hand-specified below instead of derived.
@@ -1556,24 +1697,27 @@
 
     function buildHW() {
       HW = [];
-      const owned = {}; if (RIG.gpu) owned[RIG.gpu] = 1;
-      if (RIG.spare) owned[RIG.spare] = (owned[RIG.spare] || 0) + 1;
+      const owned = rigOwned();
       const res = SYSRES;
 
-      // Offer an arrangement only if it builds on the card you own, or replaces it
-      // with something at least as good on capacity or bandwidth. Otherwise a 5090
-      // owner gets offered "buy an RTX 5080", which nobody would do.
-      const mineC = GPUC[RIG.gpu] || GPUC['5080'];
+      // Offer an arrangement only if it builds on something you already own, or
+      // replaces it with something at least as good on capacity or bandwidth.
+      // Otherwise a 5090 owner gets offered "buy an RTX 5080", which nobody would do.
+      const mineC = GPUC[rigPrimary()] || GPUC['5080'];
       const sets = GSETS.filter(c => {
         const ks = Object.keys(c);
-        if (ks.indexOf(RIG.gpu) >= 0) return true;
+        if (ks.some(k => owned[k])) return true;
         return ks.every(k => GPUC[k].vram > mineC.vram || GPUC[k].bw > mineC.bw);
       });
-      if (!sets.some(c => Object.keys(c).length === 1 && c[RIG.gpu] === 1)) { const o = {}; o[RIG.gpu] = 1; sets.unshift(o); }
-      if (RIG.spare && RIG.spare !== RIG.gpu &&
-        !sets.some(c => c[RIG.gpu] === 1 && c[RIG.spare] === 1)) {
-        const o = {}; o[RIG.gpu] = 1; o[RIG.spare] = 1; sets.push(o);
-      }
+      // The exact arrangement you already own must appear, or there is no baseline
+      // to compare anything against. With a list rather than a card plus a spare,
+      // that arrangement can be any shape, so match on the whole set.
+      const sameSet = (a, b) => {
+        const ka = Object.keys(a), kb = Object.keys(b);
+        return ka.length === kb.length && ka.every(k => a[k] === b[k]);
+      };
+      if (Object.keys(owned).length && !sets.some(c => sameSet(c, owned)))
+        sets.unshift(Object.assign({}, owned));
 
       const gpuAll = sets.map(c => gpuSet(c, owned));
 
@@ -1674,7 +1818,8 @@
           bwSlow: pl.cpuKey ? numaBW(CPUP[pl.cpuKey], 'distribute').bw : r.bw,
           res: pl.res, gpus: g.slots, plat: pl.k, cpuKey: pl.cpuKey,
           pfKey: g.pfKey, pfTF: g.pfTF, pfBest: g.pfBest, pfBestVram: g.pfBestVram,
-          srv: g.srv, pcieGBs: pcieFor(pl.k, g.slots, g.pfKey),
+          srv: g.srv, tpNvl: g.tpNvl, nvlAble: g.nvlAble, nvlMax: g.nvlMax,
+          pcieGBs: pcieFor(pl.k, g.slots, g.pfKey),
               alt: g.alt, tp: g.tp, tpSet: g.tpSet,
               mine: (RIG.kind !== 'uni' && pl.k === 'd' && g.mine && r.k === 'cur'),
               price: pl.base + g.p + r.p, ovh: .0012
@@ -1716,7 +1861,7 @@
       const pl = CPLAT[CUSTOM.plat] || CPLAT.d;
       const c = customCards();
       const plName = CUSTOM.plat === 'd' ? myCpu().n.split(' \u2014 ')[0] : pl.n;
-      const g = gpuSet(c, owned);
+      const g = gpuSet(c, owned, !nvlOn());
       const ramGB = Math.max(16, CUSTOM.ramGB | 0 || 128);
       // Server memory is RDIMM and priced per GB from the fixed builds above.
       // On your own board you only pay for what you add, and filling every slot
@@ -1730,6 +1875,7 @@
         meta: g.n + ' \u00b7 ' + ramGB + 'GB \u00b7 ' + plName + (g.slots > 1 ? ' \u00b7 layer-split' : ''),
         vram: g.vram, ram: ramGB, bwFast: g.bw, bwSlow: bw, res: res, gpus: g.slots, plat: CUSTOM.plat,
         pfKey: g.pfKey, pfTF: g.pfTF, pfBest: g.pfBest, pfBestVram: g.pfBestVram,
+        tpNvl: g.tpNvl, nvlAble: g.nvlAble, nvlMax: g.nvlMax,
         pcieGBs: pcieFor(CUSTOM.plat, g.slots, g.pfKey),
         alt: g.alt, tp: g.tp, tpSet: g.tpSet, custom: 1,
         price: pl.base + g.p + ramP, ovh: .0012
@@ -1739,25 +1885,20 @@
     // The card list the custom builder currently describes, clamped to the slots the
     // chosen platform actually has. Card A is filled first, so raising the platform's
     // slot count never silently reorders what you asked for.
-    // The card rows of the custom builder, as [{k, n}]. THREE rows now, not the
-    // hardcoded pair this used to be: a workstation or server board with eight slots
-    // could never be filled through a two-card form, which left every 4- and 8-GPU
-    // arrangement in GSETS reachable by the catalogue but not by hand.
-    const CUROWS = [['gpu', 'n'], ['gpu2', 'n2'], ['gpu3', 'n3']];
+    // The builder's GPU list, always a clean array. Rows beyond the board's slot
+    // count are clamped rather than dropped, so shrinking the platform and growing
+    // it again does not silently lose a card model.
     function customRows() {
-      return CUROWS.map(function (r) {
-        return { gk: r[0], nk: r[1], k: CUSTOM[r[0]], n: CUSTOM[r[1]] | 0 };
-      });
+      return (CUSTOM.gpus || []).filter(r => r && GPUC[r.k]);
     }
     function customCards() {
       const slots = cplatSlots(CUSTOM.plat), c = {};
       let used = 0;
       for (const r of customRows()) {
-        if (!r.k || !GPUC[r.k]) continue;
-        const take = Math.max(0, Math.min(r.n, slots - used));
+        const take = Math.max(0, Math.min(r.n | 0, slots - used));
         if (take) { c[r.k] = (c[r.k] || 0) + take; used += take; }
       }
-      if (!used) c[GPUC[CUSTOM.gpu] ? CUSTOM.gpu : '5090'] = 1;
+      if (!used) c['5090'] = 1;
       return c;
     }
     // Slots the current selection occupies, against what the board offers.
@@ -1973,10 +2114,17 @@
     function calc(m, hw) {
       const modes = [hw];
       if (hw.alt) modes.push({ ...hw, ...hw.alt, alt: null, tp: null });
-      if (hw.tp && m.g === 'd') modes.push({ ...hw, bwFast: hw.bwFast * hw.tp, alt: null, tp: null });
-      // Mixed build, dense model: run TP across the identical cards and leave the odd
-      // one idle. Costs its VRAM, buys the parallel bandwidth.
-      if (hw.tpSet && m.g === 'd') modes.push({
+      // Tensor parallelism pays on DENSE models over any bus, and on MoE too when the
+      // cards share a coherent link. The old rule barred MoE outright, which was
+      // right for PCIe -- a batch-1 MoE has too little work per layer to hide the
+      // AllReduce -- but wrong for an NVSwitch board, where the reduce costs
+      // microseconds. On an 8-way HGX that rule was throwing away the entire reason
+      // the machine costs what it does.
+      const tpOK = m.g === 'd' || hw.tpNvl;
+      if (hw.tp && tpOK) modes.push({ ...hw, bwFast: hw.bwFast * hw.tp, alt: null, tp: null });
+      // Mixed build: run TP across the largest identical group and leave the odd card
+      // idle. Costs its VRAM, buys the parallel bandwidth.
+      if (hw.tpSet && (m.g === 'd' || hw.tpSet.nvl)) modes.push({
         ...hw, vram: hw.tpSet.vram,
         bwFast: hw.tpSet.bw * hw.tpSet.f, alt: null, tp: null, tpSet: null
       });
@@ -2886,6 +3034,33 @@
             'faster DIMMs beat a faster GPU here \u2014 buy the fastest SLOW tier, not the fastest fast one.'
             : 'Some of the token comes from system RAM. Worth watching, not yet the limit.', ss);
 
+      // -- GPU-to-GPU link --------------------------------------------------------
+      // Whether the cards can talk to each other coherently decides whether tensor
+      // parallelism is available on an MoE at all, which on a big multi-GPU box is
+      // the single largest factor in the answer. Worth its own row rather than being
+      // buried in the PCIe line, because it is a purchasing decision: two cards that
+      // bridge behave nothing like two that do not.
+      if (gpus > 1 && !hw.unified) {
+        const linked = !!hw.tpNvl;
+        const canTP = m.g === 'd' || linked;
+        add('GPU-to-GPU link', linked ? 'green' : (m.g === 'd' ? 'amber' : 'red'),
+          linked ? 'coherent link across ' + gpus + ' cards' : 'PCIe only \u2014 no NVLink',
+          linked
+            ? 'These cards share a coherent link, so every matrix can be split across all ' +
+              gpus + ' of them and the per-layer AllReduce costs microseconds. That is what ' +
+              'makes tensor parallelism worth using on an MoE at batch 1, and it is the ' +
+              'difference between this build and the same silicon on a plain PCIe board.'
+            : canTP
+              ? 'No coherent link, so the per-layer AllReduce crosses PCIe. Dense models still ' +
+                'gain from tensor parallelism, but well short of linear. MoE decode at batch 1 ' +
+                'does not: there is too little work per layer to hide the round trip.'
+              : 'No coherent link. At batch 1 an MoE has too little work per layer to amortise ' +
+                'an AllReduce over PCIe, so these cards can only layer-split \u2014 they add ' +
+                'VRAM and nothing else. Consumer Blackwell and the RTX PRO 6000 both lack ' +
+                'NVLink; the 3090 is the last GeForce that has it.',
+          linked ? 0.1 : (canTP ? 0.4 : 0.7));
+      }
+
       // -- interconnect -----------------------------------------------------------
       // A cluster earns green only when it is doing the one thing it can do: holding
       // a model a single node will not. If the model already fits on one node, the
@@ -3322,12 +3497,39 @@ VRAM. NVIDIA extended memory price rises to mainstream cards on 23 Jul 2026.</p>
     });
 
     // ---------- your-system panel ----------
+    // Your rig's card list, through the same editor the custom build uses.
+    function renderRigGpus() {
+      renderGpuEditor({
+        list: 'rigGpuList', add: 'rigAdd', nvlWrap: 'rigNvlWrap', nvlBox: 'rigNvl',
+        rows: () => RIG.gpus, slots: myCpu().slots, nvlOn: rigNvlOn(),
+        onChange: rigGpusChanged
+      });
+      const own = rigOwned();
+      const used = Object.keys(own).reduce((t, k) => t + own[k], 0);
+      const total = myCpu().slots;
+      const el = $('rigSlots');
+      if (el) el.innerHTML = '<b>' + used + ' of ' + total + ' slots</b> used on ' +
+        myCpu().n.split(' \u2014 ')[0] +
+        (used >= total ? ' \u2014 board full. Anything more needs a different platform.'
+          : ' \u2014 ' + (total - used) + ' free.') +
+        ' Everything you own here is netted off the price of every upgrade below.';
+    }
+    function rigGpusChanged() {
+      // Cards you own cannot outnumber the slots you have.
+      let left = myCpu().slots;
+      RIG.gpus = (RIG.gpus || []).filter(r => r && GPUC[r.k]).map(function (r) {
+        const take = Math.max(0, Math.min(r.n | 0, left)); left -= take;
+        return { k: r.k, n: take };
+      }).filter(r => r.n > 0);
+      if (!RIG.gpus.length) RIG.gpus = [{ k: '5080', n: 1 }];
+      try { localStorage.setItem('rig', JSON.stringify(RIG)); } catch (e) { }
+      buildHW();
+      const mine = HW.find(h => h.mine);
+      cur = mine ? mine.id : HW[0].id;
+      renderRigGpus(); cfgSummary(); customSummary(); render();
+    }
     function cfgFill() {
-      const opts = (sel, blank) => (blank ? '<option value="">none</option>' : '') +
-        Object.keys(GPUC).map(k => '<option value="' + k + '"' + (k === sel ? ' selected' : '') + '>' +
-          GPUC[k].n + gpuFlag(k) + '</option>').join('');
-      $('cfgGpu').innerHTML = opts(RIG.gpu, false);
-      $('cfgSpare').innerHTML = opts(RIG.spare, true);
+      renderRigGpus();
       $('cfgCpu').innerHTML = Object.keys(CPUP).map(k => '<option value="' + k + '"' +
         (k === RIG.cpu ? ' selected' : '') + '>' + CPUP[k].n + '</option>').join('');
       numaSync();
@@ -3342,10 +3544,10 @@ VRAM. NVIDIA extended memory price rises to mainstream cards on 23 Jul 2026.</p>
     // sitting there implying they still apply.
     function kindSync() {
       const uni = (RIG.kind || 'std') === 'uni';
-      ['lblGpu', 'lblSpare', 'lblRam', 'lblCpu', 'lblMts'].forEach(id => {
+      ['lblRam', 'lblCpu', 'lblMts', 'rigGpuWrap', 'rigNvlWrap'].forEach(id => {
         const el = $(id); if (el) el.style.display = uni ? 'none' : '';
       });
-      if (uni) $('numaLbl').style.display = 'none';
+      if (uni) { $('numaLbl').style.display = 'none'; const rs = $('rigSlots'); if (rs) rs.innerHTML = ''; }
       $('uniLbl').style.display = uni ? '' : 'none';
       $('cfgUni').innerHTML = Object.keys(UNI).map(k => '<option value="' + k + '"' +
         (k === RIG.uni ? ' selected' : '') + '>' + UNI[k].n + '</option>').join('');
@@ -3369,16 +3571,26 @@ VRAM. NVIDIA extended memory price rises to mainstream cards on 23 Jul 2026.</p>
 
     function cfgSummary() {
       if ((RIG.kind || 'std') === 'uni') return uniSummary();
-      const g = GPUC[RIG.gpu], sp = RIG.spare ? GPUC[RIG.spare] : null;
-      const vram = g.vram + (sp ? sp.vram : 0), rb = ramBW(RIG.ramCh, RIG.ramMTs);
-      $('cfgOut').innerHTML = 'Modelled as <b>' + vram + ' GB VRAM</b> (' + g.n +
-        (sp ? ' + ' + sp.n : '') + ') at <b>~' + g.bw + ' GB/s effective</b> \u2014 ' +
-        Math.round(g.bw / g.nom * 100) + '% of its ' + g.nom + ' GB/s nominal, because batch-1 MoE decode ' +
-        'converts only a fraction of any bus. System memory <b>~' + rb + ' GB/s effective</b> from ' +
+      const own = rigOwned();
+      const gs = gpuSet(own, {}, !rigNvlOn());
+      const prim = GPUC[rigPrimary()];
+      const est = Object.keys(own).filter(k => GPUC[k].est).map(k => GPUC[k].n);
+      const rb = ramBW(RIG.ramCh, RIG.ramMTs);
+      $('cfgOut').innerHTML = 'Modelled as <b>' + gs.vram + ' GB VRAM</b> (' + gs.n +
+        ') at <b>~' + gs.bw + ' GB/s effective</b>' +
+        (Object.keys(own).length > 1
+          ? ' \u2014 the capacity-weighted harmonic mean across the cards, because layer split ' +
+            'reads from each in turn and the slowest one drags the rest. '
+          : ' \u2014 ' + Math.round(prim.bw / prim.nom * 100) + '% of its ' + prim.nom +
+            ' GB/s nominal, because batch-1 MoE decode converts only a fraction of any bus. ') +
+        (gs.tpNvl ? '<b>These cards share a coherent link</b>, so tensor parallelism is available ' +
+          'on MoE as well as dense models (' + gs.tp.toFixed(2) + '\u00d7). ' : '') +
+        'System memory <b>~' + rb + ' GB/s effective</b> from ' +
         RIG.ramCh + '\u00d7 DDR5-' + RIG.ramMTs + ' on ' + myCpu().n + ' (' + myCpu().lanes +
         ' CPU lanes, ' + myCpu().slots + ' usable card slots), with ' + SYSRES +
         ' GB reserved for the OS and runtime. ' +
-        (g.est ? '<b>This card\u2019s bandwidth is estimated, not calibrated from a benchmark.</b>' : '');
+        (est.length ? '<b>' + est.join(' and ') + ' bandwidth is estimated, not calibrated ' +
+          'from a benchmark.</b>' : '');
     }
     // What a cluster of unified boxes is and is not. Written out because the
     // intuition -- two machines, twice the speed -- is wrong in a way that costs
@@ -3409,7 +3621,6 @@ VRAM. NVIDIA extended memory price rises to mainstream cards on 23 Jul 2026.</p>
       RIG.kind = $('cfgKind').value === 'uni' ? 'uni' : 'std';
       RIG.uni = $('cfgUni').value in UNI ? $('cfgUni').value : 'spark';
       RIG.uniN = Math.max(1, Math.min(UNI[RIG.uni].maxN || 1, +$('cfgUniN').value || 1));
-      RIG.gpu = $('cfgGpu').value; RIG.spare = $('cfgSpare').value;
       RIG.ramGB = Math.max(8, +$('cfgRam').value || 96);
       RIG.cpu = $('cfgCpu').value in CPUP ? $('cfgCpu').value : 'arrow';
       RIG.numa = $('cfgNuma').value in NUMA ? $('cfgNuma').value : 'unknown';
@@ -3419,14 +3630,33 @@ VRAM. NVIDIA extended memory price rises to mainstream cards on 23 Jul 2026.</p>
       buildHW();
       const mine = HW.find(h => h.mine);
       cur = mine ? mine.id : HW[0].id;
-      numaSync(); kindSync(); cfgSummary(); customSummary(); render();
+      // A CPU change can change the slot count under the card list.
+      let left = myCpu().slots;
+      RIG.gpus = (RIG.gpus || []).filter(r => r && GPUC[r.k]).map(function (r) {
+        const take = Math.max(0, Math.min(r.n | 0, left)); left -= take;
+        return { k: r.k, n: take };
+      }).filter(r => r.n > 0);
+      if (!RIG.gpus.length) RIG.gpus = [{ k: '5080', n: 1 }];
+      buildHW();
+      numaSync(); kindSync(); renderRigGpus(); cfgSummary(); customSummary(); render();
     }
-    ['cfgGpu', 'cfgSpare', 'cfgRam', 'cfgCpu', 'cfgNuma', 'cfgMts',
+    ['cfgRam', 'cfgCpu', 'cfgNuma', 'cfgMts',
      'cfgKind', 'cfgUni', 'cfgUniN'].forEach(id => {
       const el = $(id); if (el) el.onchange = cfgApply;
     });
+    if ($('rigAdd')) $('rigAdd').onclick = () => {
+      const own = rigOwned();
+      const used = Object.keys(own).reduce((t, k) => t + own[k], 0);
+      gpuEditorAdd(RIG.gpus, used, myCpu().slots, rigGpusChanged);
+    };
+    if ($('rigNvl')) $('rigNvl').onchange = () => {
+      RIG.nvlink = $('rigNvl').checked ? 1 : 0;
+      rigGpusChanged();
+    };
     if ($('cfgReset')) $('cfgReset').onclick = () => {
-      RIG = Object.assign({}, DEFAULT_RIG);
+      // Through the migrator, so the fresh RIG gets its OWN array rather than a
+      // reference into DEFAULT_RIG that the editor would then mutate.
+      RIG = migrateRigGpus(Object.assign({}, DEFAULT_RIG));
       try { localStorage.removeItem('rig'); } catch (e) { }
       buildHW(); cur = (HW.find(h => h.mine) || HW[0]).id;
       cfgFill(); render();
@@ -3439,8 +3669,7 @@ VRAM. NVIDIA extended memory price rises to mainstream cards on 23 Jul 2026.</p>
     // and no DIMMs to choose.
     function cuKindSync() {
       const uni = (CUSTOM.kind || 'std') === 'uni';
-      ['cuPlatLbl', 'cuGpuLbl', 'cuNLbl', 'cuGpu2Lbl', 'cuN2Lbl', 'cuGpu3Lbl', 'cuN3Lbl',
-       'cuRamLbl'].forEach(id => {
+      ['cuPlatLbl', 'cuRamLbl', 'cuGpuWrap', 'cuNvlWrap'].forEach(id => {
         const el = $(id); if (el) el.style.display = uni ? 'none' : '';
       });
       if (uni) { $('cuNumaLbl').style.display = 'none'; const sl = $('cuSlots'); if (sl) sl.innerHTML = ''; }
@@ -3458,9 +3687,6 @@ VRAM. NVIDIA extended memory price rises to mainstream cards on 23 Jul 2026.</p>
     }
     function customFill() {
       const pl = CPLAT[CUSTOM.plat] || CPLAT.d;
-      const c = customCards();
-      const nA = c[CUSTOM.gpu] || 0, nB = (CUSTOM.gpu2 && CUSTOM.gpu2 !== CUSTOM.gpu) ? (c[CUSTOM.gpu2] || 0)
-        : (CUSTOM.gpu2 ? Math.max(0, (c[CUSTOM.gpu2] || 0) - nA) : 0);
       const cards = k => Object.keys(GPUC).map(x => '<option value="' + x + '"' + (x === k ? ' selected' : '') + '>' +
         GPUC[x].n + gpuFlag(x) + '</option>').join('');
       const counts = (sel, lo, hi) => {
@@ -3471,22 +3697,7 @@ VRAM. NVIDIA extended memory price rises to mainstream cards on 23 Jul 2026.</p>
       $('cuPlat').innerHTML = Object.keys(CPLAT).map(k => '<option value="' + k + '"' +
         (k === CUSTOM.plat ? ' selected' : '') + '>' + (k === 'd' ? myCpu().n.split(' — ')[0] +
           ' (' + myCpu().slots + ' slots)' : CPLAT[k].n) + '</option>').join('');
-      const cslots = cplatSlots(CUSTOM.plat);
-      // Each row is offered only the slots the rows above it have not claimed, so the
-      // three dropdowns together can never overcommit the board.
-      let claimed = 0;
-      customRows().forEach(function (r, i) {
-        const sel = $(i ? 'cuGpu' + (i + 1) : 'cuGpu');
-        const cnt = $(i ? 'cuN' + (i + 1) : 'cuN');
-        if (!sel || !cnt) return;
-        sel.innerHTML = (i ? '<option value="">none</option>' : '') + cards(r.k);
-        const lo = i ? 0 : 1;
-        const room = Math.max(lo, cslots - claimed);
-        const have = Math.max(lo, Math.min(r.n, room));
-        cnt.innerHTML = counts(have, lo, room);
-        cnt.disabled = i > 0 && !r.k;
-        if (r.k && GPUC[r.k]) claimed += have;
-      });
+      renderGpuList(cards, counts);
       const su = customSlotUse();
       const slotEl = $('cuSlots');
       if (slotEl) slotEl.innerHTML = '<b>' + su.used + ' of ' + su.total + ' slots</b> used on ' +
@@ -3504,6 +3715,127 @@ VRAM. NVIDIA extended memory price rises to mainstream cards on 23 Jul 2026.</p>
       cuKindSync();
       customSummary();
     }
+    // Draw one row per GPU model, each with its own count and a remove button, plus
+    // an add button that goes dead only when the board is genuinely full. The old
+    // fixed three-row form left a dropdown offering nothing but "0" on a two-slot
+    // board -- a control that could not do anything, next to a card selector that
+    // could not take effect.
+    // Option lists, shared by both editors.
+    const gpuOptions = k => Object.keys(GPUC).map(x => '<option value="' + x + '"' +
+      (x === k ? ' selected' : '') + '>' + GPUC[x].n + gpuFlag(x) + '</option>').join('');
+    const countOptions = (sel, lo, hi) => {
+      let o = '';
+      for (let i = lo; i <= hi; i++)
+        o += '<option value="' + i + '"' + (i === sel ? ' selected' : '') + '>' + i + '</option>';
+      return o;
+    };
+
+    // ONE GPU-list editor, driven by a small descriptor, so "your system" and the
+    // custom build cannot drift apart. Both need exactly the same behaviour: rows
+    // named GPU 1..n, a shared slot budget, a coherent-link indicator, and an add
+    // button that goes dead only when the board is genuinely full.
+    //
+    // o.rows() must return the LIVE array -- the handlers mutate it in place and then
+    // call o.onChange().
+    function renderGpuEditor(o) {
+      const list = $(o.list); if (!list) return;
+      const rows = o.rows().filter(r => r && GPUC[r.k]);
+      const slots = o.slots, on = o.nvlOn;
+      const claimedBy = rows.map(r => r.n | 0);
+      const totalClaimed = claimedBy.reduce((a, b) => a + b, 0);
+      let anyLinkable = false;
+      // Linkability belongs to the GROUP, not to one row. Eight rows of one B300
+      // each is still eight B300s on one NVSwitch -- the earlier per-row test read
+      // every one of them as a lone card and printed "bridges from 2" eight times.
+      // Count by model across the whole list, then mark every row of a linked model.
+      const totals = {};
+      rows.forEach(function (r, i) {
+        const room = Math.max(1, slots - (totalClaimed - claimedBy[i]));
+        totals[r.k] = (totals[r.k] || 0) + Math.max(1, Math.min(claimedBy[i], room));
+      });
+      const grouped = k => totals[k] >= 2 && totals[k] <= nvlMax(k);
+      const seenFirst = {};
+      list.innerHTML = rows.map(function (r, i) {
+        const room = Math.max(1, slots - (totalClaimed - claimedBy[i]));
+        const have = Math.max(1, Math.min(claimedBy[i], room));
+        const cap = nvlMax(r.k);
+        const linkable = grouped(r.k);
+        if (linkable) anyLinkable = true;
+        // The bar carries the meaning down the group, so only the first row of each
+        // group is labelled -- repeating the tag on every row is noise.
+        const first = linkable && !seenFirst[r.k];
+        if (linkable) seenFirst[r.k] = 1;
+        // Drop the gap below a row whose successor is in the same group, so the green
+        // edge reads as one continuous line rather than a stack of dashes.
+        const cont = linkable && rows[i + 1] && rows[i + 1].k === r.k;
+        const tag = first
+          ? '<span class="nvltag">\u25cf ' + (cap >= 8 ? 'NVSwitch' : 'NVLink') +
+            ' \u00d7' + totals[r.k] + (on ? '' : ' (off)') + '</span>'
+          : (!linkable && cap >= 2
+            ? '<span class="nvltag" style="color:var(--ink3)">bridges from 2</span>' : '');
+        return '<div class="gpurow' + (linkable ? ' nvl' : '') + (linkable && !on ? ' off' : '') +
+          (cont ? ' nvl-cont' : '') + '">' +
+          '<label>GPU ' + (i + 1) +
+            '<select class="gsel" data-i="' + i + '">' + gpuOptions(r.k) + '</select></label>' +
+          '<label>how many' +
+            '<select class="gcnt" data-i="' + i + '">' + countOptions(have, 1, room) + '</select></label>' +
+          '<button type="button" class="gdel" data-i="' + i + '"' +
+            (rows.length < 2 ? ' disabled title="at least one card is required"' : '') +
+            '>\u2212</button>' + tag + '</div>';
+      }).join('');
+      list.querySelectorAll('.gsel').forEach(function (el) {
+        el.onchange = function () {
+          const i = +el.getAttribute('data-i'), arr = o.rows();
+          if (arr[i]) { arr[i].k = el.value; o.onChange(); }
+        };
+      });
+      list.querySelectorAll('.gcnt').forEach(function (el) {
+        el.onchange = function () {
+          const i = +el.getAttribute('data-i'), arr = o.rows();
+          if (arr[i]) { arr[i].n = Math.max(1, +el.value || 1); o.onChange(); }
+        };
+      });
+      list.querySelectorAll('.gdel').forEach(function (el) {
+        el.onclick = function () {
+          const i = +el.getAttribute('data-i'), arr = o.rows();
+          if (arr.length > 1) { arr.splice(i, 1); o.onChange(); }
+        };
+      });
+      const used = rows.reduce(function (t, r, i) {
+        return t + Math.max(1, Math.min(claimedBy[i], Math.max(1, slots - (totalClaimed - claimedBy[i]))));
+      }, 0);
+      const add = $(o.add);
+      if (add) {
+        const full = used >= slots || rows.length >= CU_MAX_ROWS;
+        add.disabled = full;
+        add.title = used >= slots ? 'every slot on this board is taken'
+          : rows.length >= CU_MAX_ROWS ? 'eight card models is the limit' : '';
+      }
+      // The link toggle only appears when there is something to toggle.
+      const nvlWrap = $(o.nvlWrap), nvlBox = $(o.nvlBox);
+      if (nvlWrap) nvlWrap.style.display = anyLinkable ? 'inline-flex' : 'none';
+      if (nvlBox) nvlBox.checked = on;
+    }
+
+    // Add a row to either editor, defaulting to the card already there -- which is
+    // what someone adding a second GPU almost always wants.
+    function gpuEditorAdd(arr, used, slots, onChange) {
+      if (used >= slots || arr.length >= CU_MAX_ROWS) return;
+      const last = arr[arr.length - 1];
+      arr.push({ k: last ? last.k : '5090', n: 1 });
+      onChange();
+    }
+
+    function renderGpuList(cards, counts) {
+      renderGpuEditor({
+        list: 'cuGpuList', add: 'cuAdd', nvlWrap: 'cuNvlWrap', nvlBox: 'cuNvl',
+        rows: () => CUSTOM.gpus, slots: cplatSlots(CUSTOM.plat), nvlOn: nvlOn(),
+        onChange: gpuListChanged
+      });
+    }
+    function gpuListChanged() {
+      customSave(); buildHW(); cur = 'custom'; customFill(); render();
+    }
     function customSummary() {
       const h = HW.find(x => x.id === 'custom'); if (!h) { $('cuOut').innerHTML = ''; return; }
       if ((CUSTOM.kind || 'std') === 'uni') {
@@ -3520,8 +3852,14 @@ VRAM. NVIDIA extended memory price rises to mainstream cards on 23 Jul 2026.</p>
       const pl = CPLAT[CUSTOM.plat] || CPLAT.d, c = customCards();
       const est = Object.keys(c).filter(k => GPUC[k].est).map(k => GPUC[k].n);
       const mixed = Object.keys(c).length > 1;
-      const tpTxt = h.tp ? 'Identical cards, so dense models can be tensor-parallel across them (' +
-        h.tp.toFixed(2) + '\u00d7); MoE decode at batch 1 cannot use that. '
+      const tpTxt = h.tp ? (h.tpNvl
+        ? 'Identical cards on a coherent link, so tensor parallelism runs across all of them (' +
+          h.tp.toFixed(2) + '\u00d7) on <b>MoE as well as dense</b> models \u2014 the per-layer ' +
+          'AllReduce costs microseconds over NVLink rather than the tens of microseconds PCIe ' +
+          'needs, which is most of what the fabric is buying. '
+        : 'Identical cards, so dense models can be tensor-parallel across them (' +
+          h.tp.toFixed(2) + '\u00d7); MoE decode at batch 1 cannot use that, because over PCIe ' +
+          'there is too little work per layer to hide the AllReduce. ')
         : h.tpSet ? 'Dense models can run tensor-parallel across the matched cards (' +
           h.tpSet.f.toFixed(2) + '\u00d7 over ' + h.tpSet.vram + ' GB) with the odd card idle \u2014 ' +
           'the model takes whichever arrangement is faster. '
@@ -3548,25 +3886,37 @@ VRAM. NVIDIA extended memory price rises to mainstream cards on 23 Jul 2026.</p>
       CUSTOM.kind = $('cuKind').value === 'uni' ? 'uni' : 'std';
       CUSTOM.uni = $('cuUni').value in UNI ? $('cuUni').value : 'spark';
       CUSTOM.uniN = Math.max(1, Math.min(UNI[CUSTOM.uni].maxN || 1, +$('cuUniN').value || 1));
-      const slots = cplatSlots($('cuPlat').value);
       CUSTOM.plat = $('cuPlat').value;
+      // Changing platform can shrink the board under the list. Clamp counts to the
+      // new slot budget, and drop rows that no longer have anywhere to sit -- but
+      // never leave the list empty.
+      const slots = cplatSlots(CUSTOM.plat);
       let left = slots;
-      CUROWS.forEach(function (row, i) {
-        const gk = row[0], nk = row[1];
-        const sel = $(i ? 'cuGpu' + (i + 1) : 'cuGpu');
-        const cnt = $(i ? 'cuN' + (i + 1) : 'cuN');
-        CUSTOM[gk] = sel ? sel.value : '';
-        const lo = i ? 0 : 1;
-        const want = cnt ? (+cnt.value || lo) : lo;
-        CUSTOM[nk] = (i && !CUSTOM[gk]) ? 0 : Math.max(lo, Math.min(want, Math.max(lo, left)));
-        if (CUSTOM[gk] && GPUC[CUSTOM[gk]]) left -= CUSTOM[nk];
-      });
+      CUSTOM.gpus = (CUSTOM.gpus || []).filter(r => r && GPUC[r.k]).map(function (r) {
+        const take = Math.max(0, Math.min(r.n | 0, left));
+        left -= take;
+        return { k: r.k, n: take };
+      }).filter(r => r.n > 0);
+      if (!CUSTOM.gpus.length) CUSTOM.gpus = [{ k: '5090', n: 1 }];
       CUSTOM.numa = $('cuNuma').value in NUMA ? $('cuNuma').value : 'unknown';
       CUSTOM.ramGB = Math.max(16, +$('cuRam').value || 128);
       customSave(); buildHW(); cur = 'custom'; customFill(); render();
     }
-    ['cuPlat', 'cuGpu', 'cuN', 'cuGpu2', 'cuN2', 'cuGpu3', 'cuN3', 'cuRam', 'cuNuma',
+    ['cuPlat', 'cuRam', 'cuNuma',
      'cuKind', 'cuUni', 'cuUniN'].forEach(id => { const el = $(id); if (el) el.onchange = customApply; });
+    if ($('cuNvl')) $('cuNvl').onchange = () => {
+      CUSTOM.nvlink = $('cuNvl').checked ? 1 : 0;
+      gpuListChanged();
+    };
+    if ($('cuAdd')) $('cuAdd').onclick = () => {
+      const su = customSlotUse();
+      if (su.used >= su.total || (CUSTOM.gpus || []).length >= CU_MAX_ROWS) return;
+      // Default the new row to the card already in the build, which is what someone
+      // adding a second GPU almost always wants.
+      const last = CUSTOM.gpus[CUSTOM.gpus.length - 1];
+      CUSTOM.gpus.push({ k: last ? last.k : '5090', n: 1 });
+      gpuListChanged();
+    };
     if ($('cuClose')) $('cuClose').onclick = () => {
       CUSTOM.on = 0; customSave(); buildHW();
       cur = (HW.find(h => h.mine) || HW[0]).id; customOpen(false); render();

@@ -159,7 +159,15 @@ lens, use AA's own [embed](https://artificialanalysis.ai/embed/llm-leaderboard).
   benchmark exists yet. Expect this to move.
 - Threadripper and Xeon memory figures are **modelled, not measured**: no published llama.cpp
   MoE-offload token benchmark for those platforms could be found as of 27 July 2026.
-- Tensor-parallel gains assume working peer-to-peer, which GeForce cards do not have.
+- **Tensor parallelism is gated on the GPU-to-GPU link, and the link is modelled per card.**
+  Cards that can bridge (RTX 3090, A6000, A100, H100/H200 NVL) or share a fabric (HGX B300 on
+  NVSwitch) are assumed connected by default, because that is a property of the hardware rather
+  than a setting; the custom builder marks those rows with a green edge and lets you switch it off.
+  With a coherent link, tensor parallelism pays on **MoE at batch 1** as well as on dense models —
+  the per-layer AllReduce costs microseconds instead of tens of them. Without one it pays only on
+  dense models. On an 8-way B300 board that distinction is worth 4.5x on GLM-5.2 (81 to 368 tok/s),
+  which is most of what the fabric is for. Consumer Blackwell and the RTX PRO 6000 have no NVLink;
+  the 3090 is the last GeForce that does.
 - Two card bandwidths are flagged `(est)` in the picker.
 
 Every figure carries its date in the provenance table at the bottom of the page.
