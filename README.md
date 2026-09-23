@@ -77,9 +77,9 @@ Quality scores come from the **Arena leaderboard dataset**, three lenses:
 
 | Lens | What it measures | Models rated here |
 |---|---|---|
-| Arena text | style-controlled human preference on ordinary chat | 36 of 49 |
-| Arena WebDev | the same method on front-end build tasks | 16 of 49 |
-| Arena Agent | standardised score on agentic sessions, 0 = field average | 10 of 49 |
+| Arena text | style-controlled human preference on ordinary chat | 38 of 54 |
+| Arena WebDev | the same method on front-end build tasks | 32 of 54 |
+| Arena Agent | standardised score on agentic sessions, 0 = field average | 16 of 54 |
 
 Coverage is shown beside the metric selector, and models unrated on the active lens are hidden and
 counted under the chart. There is deliberately **no blended score**: the lenses disagree, and that
@@ -88,7 +88,7 @@ disagreement is the useful signal.
 > Rating data from [`lmarena-ai/leaderboard-dataset`](https://huggingface.co/datasets/lmarena-ai/leaderboard-dataset)
 > by **Arena Intelligence, Inc.**, used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 > **Changes made:** a subset of models was selected; values were reformatted for plotting and rounded
-> for display; no rating was altered. Latest split read 19 August 2026.
+> for display; no rating was altered. Latest split read 13 September 2026.
 > Cite: Chiang et al., *Chatbot Arena*, [arXiv:2403.04132](https://arxiv.org/abs/2403.04132).
 
 These are **Bradley–Terry** ratings, not Elo, despite the common label. Taken from the dataset
@@ -105,13 +105,19 @@ Qwen3-Coder 480B. Models carrying `est` have their Q4 file size derived from tot
 size and capacity verdicts are estimates. Several are rated on only one lens because the boards do
 not all move at the same speed.
 
+The 23 Sep 2026 refresh re-read every rating against the 13 Sep Arena split and added nine models:
+GLM-5.3 Flash, GLM-4.7, DeepSeek V4.1 Flash, MiMo-V2.6-Pro, Qwen3.8-Flash-Next, Hy4 preview, K2 Horizon
+375B-A23B, Step 3.7 Flash and Nemotron 3 Nano 30B-A3B. Four models rated on no board at all were
+dropped. Agent ratings for models that have left the Agent board (Gemma 4 31B, Nemotron 3 Ultra,
+Kimi K2.6, Kimi K2.7 Code) were removed rather than kept from an older split.
+
 **This page is not affiliated with or endorsed by any benchmark operator.** Scores remain the work of
 their respective operators.
 
 ### Note on what is absent
 
-An earlier private build used the Artificial Analysis Intelligence Index, which rates 41 of the 49
-models here rather than 36. It is not in this version because AA's Terms of Use grant personal,
+An earlier private build used the Artificial Analysis Intelligence Index, which rates 49 of the 54
+models here rather than 38. It is not in this version because AA's Terms of Use grant personal,
 non-commercial use only and forbid redistributing content from their site. Individual scores are
 uncopyrightable facts, so the binding constraint is contract rather than copyright — which is why
 removing them is sufficient, and why data taken from primary sources is unaffected. If you want that
