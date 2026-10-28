@@ -42,8 +42,8 @@ goes as `1/(1 − f)`, which is why the last few percent of residency are worth 
 
 Bandwidth figures are **effective batch-1 decode throughput back-calculated from published token
 benchmarks** — never spec sheets, and never streaming rooflines, which are roughly twice what MoE
-decode converts. Against 14 published measurements the model has a leave-one-out median error of
-**5.9%**, worst case **46%**.
+decode converts. Against 16 published measurements the model has a leave-one-out median error of
+**5.6%**, worst case **46%**.
 
 Both numbers are measured under strict leave-one-out, which an earlier harness was not doing: it
 cleared the calibration cache but left the held-out measurement in place, so `calc()` returned the
@@ -77,9 +77,9 @@ Quality scores come from the **Arena leaderboard dataset**, three lenses:
 
 | Lens | What it measures | Models rated here |
 |---|---|---|
-| Arena text | style-controlled human preference on ordinary chat | 38 of 54 |
-| Arena WebDev | the same method on front-end build tasks | 32 of 54 |
-| Arena Agent | standardised score on agentic sessions, 0 = field average | 16 of 54 |
+| Arena text | style-controlled human preference on ordinary chat | 46 of 64 |
+| Arena WebDev | the same method on front-end build tasks | 41 of 64 |
+| Arena Agent | standardised score on agentic sessions, 0 = field average | 21 of 64 |
 
 Coverage is shown beside the metric selector, and models unrated on the active lens are hidden and
 counted under the chart. There is deliberately **no blended score**: the lenses disagree, and that
@@ -88,7 +88,7 @@ disagreement is the useful signal.
 > Rating data from [`lmarena-ai/leaderboard-dataset`](https://huggingface.co/datasets/lmarena-ai/leaderboard-dataset)
 > by **Arena Intelligence, Inc.**, used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 > **Changes made:** a subset of models was selected; values were reformatted for plotting and rounded
-> for display; no rating was altered. Latest split read 13 September 2026.
+> for display; no rating was altered. Latest splits read 22–27 October 2026.
 > Cite: Chiang et al., *Chatbot Arena*, [arXiv:2403.04132](https://arxiv.org/abs/2403.04132).
 
 These are **Bradley–Terry** ratings, not Elo, despite the common label. Taken from the dataset
@@ -111,13 +111,23 @@ GLM-5.3 Flash, GLM-4.7, DeepSeek V4.1 Flash, MiMo-V2.6-Pro, Qwen3.8-Flash-Next, 
 dropped. Agent ratings for models that have left the Agent board (Gemma 4 31B, Nemotron 3 Ultra,
 Kimi K2.6, Kimi K2.7 Code) were removed rather than kept from an older split.
 
+The 28 Oct 2026 refresh re-read every rating against the 22 Oct (text), 23 Oct (Agent) and 27 Oct
+(WebDev) splits and added eleven models: MiMo-V2.6-Flash, MiniMax-M3.1-Flash, Step 5 Preview, Muse Spark
+Open, Beam 1.0 501B-A23B, Ling 3.1 Flash, Inkling-Small, Nemotron 3.5 Super VL, Nemotron 3.5 Bolt
+74B-A9B, Granite 4.2 30B and Laguna M.1. Qwen3.8-Max was dropped: its open-weight release is now
+listed separately from the rated proprietary model, and nothing rates the open one. Step 5 Preview
+is still labelled proprietary on Arena because it was rated from the API before its weights shipped
+on 15 Oct. Ten models carry no Arena rating at all and so do not appear on this page (Gemma 4 E4B,
+Gemma 4 12B QAT, Nemotron 3.5 Bolt, Mistral Small 4, Step 3.7 Flash, Command A+, K2 Horizon, Ling 3.1
+Flash, A.X-K2, K-EXAONE 2.0).
+
 **This page is not affiliated with or endorsed by any benchmark operator.** Scores remain the work of
 their respective operators.
 
 ### Note on what is absent
 
-An earlier private build used the Artificial Analysis Intelligence Index, which rates 49 of the 54
-models here rather than 38. It is not in this version because AA's Terms of Use grant personal,
+An earlier private build used the Artificial Analysis Intelligence Index, whose v4.3.2 rates 58 of
+the 64 models here rather than 46 (AA moved to v5.0 in late October 2026, which so far covers 19). It is not in this version because AA's Terms of Use grant personal,
 non-commercial use only and forbid redistributing content from their site. Individual scores are
 uncopyrightable facts, so the binding constraint is contract rather than copyright — which is why
 removing them is sufficient, and why data taken from primary sources is unaffected. If you want that
@@ -136,13 +146,14 @@ lens, use AA's own [embed](https://artificialanalysis.ai/embed/llm-leaderboard).
 - Prices are sourced as **AUD retail** and switchable to USD at a dated constant rate (0.6973, 24 Jul
   2026) so the page works offline. AU retail includes 10% GST while US list prices normally exclude
   sales tax, so a converted figure sits above the US sticker you would compare it against.
-- **Memory is the volatile line.** Server DDR5 ECC RDIMM is priced at A$62/GB (re-checked 7 Aug 2026;
-  8×32 GB quotes at A$15–17k) and is still climbing as AI-server demand takes the high-capacity
-  modules. On a large-memory build this is usually a bigger number than the CPU and the cards
-  combined, so re-check it before deciding anything.
+- **Graphics cards are the volatile line now.** On 28 Oct 2026 the RTX 5090 was A$10,499 and the 5080
+  A$2,580, up 17% and 23% in five weeks. Memory eased slightly: server DDR5 ECC RDIMM is A$55/GB
+  (from A$62 in August) and desktop DDR5 about A$15/GB. On a large-memory build RDIMM is still
+  usually a bigger number than the CPU and the cards combined, so re-check it before deciding
+  anything.
 - **Second-hand server hardware is not the bargain it was.** Refurbished DDR4 is up 30–50% in the
-  same squeeze (A$15/GB here, against A$62 for DDR5 RDIMM and A$18.5 for consumer DDR5 — the
-  discount over ordinary desktop memory has nearly vanished), and used EPYC 7002/7003 prices span
+  same squeeze (A$15/GB here, against A$55 for DDR5 RDIMM and about A$15 for consumer DDR5 — the
+  discount over ordinary desktop memory has vanished), and used EPYC 7002/7003 prices span
   a genuine 3× between US eBay and AU-sourced. `epycRome2` covers two CPUs plus a dual-SP3 board at
   A$9,600, which is the lower-middle of the AU range on the reasoning that memory bandwidth comes
   from **channels, not cores** — the value build populates all eight channels per socket with the
@@ -160,9 +171,12 @@ lens, use AA's own [embed](https://artificialanalysis.ai/embed/llm-leaderboard).
   at all. gpt-oss-120b really is ~2.5× faster than GLM-4.5-Air on the same Strix Halo, and that much
   is pure active-parameter count (2.76 GB read per token against 6.96); the extra credit it gets on
   a discrete card rests on a single benchmark pair.
-- The Apple M5 Ultra effective bandwidth is an estimate at 35% of its 1.2 TB/s nominal. The two Mac
-  anchors here convert very differently — M3 Ultra at 26%, M5 Max at 43% — and no M5 Ultra token
-  benchmark exists yet. Expect this to move.
+- **Apple GPUs convert bandwidth much better on dense models than on MoE.** The first published
+  llama.cpp run on an M5 Ultra (Qwen3.8-27B at Q4_K_M, 44.9 t/s at 8k) is 1.7× what the MoE-derived
+  bandwidth predicts, while the same model on a DGX Spark lands within 6%. Dense models on Macs carry
+  a 1.7× factor as a result; one M3 Ultra measurement suggests the true gap may be larger (2.8×).
+  The M5 Ultra's MoE figure is still an estimate at 35% of its 1.2 TB/s nominal; MLX runs of two MoE
+  models suggest it may be ~15% high, but those were mixed 4/8-bit rather than Q4.
 - Threadripper and Xeon memory figures are **modelled, not measured**: no published llama.cpp
   MoE-offload token benchmark for those platforms could be found as of 27 July 2026.
 - **Tensor parallelism is gated on the GPU-to-GPU link, and the link is modelled per card.**
