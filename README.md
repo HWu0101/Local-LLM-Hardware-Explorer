@@ -43,13 +43,36 @@ goes as `1/(1 − f)`, which is why the last few percent of residency are worth 
 Bandwidth figures are **effective batch-1 decode throughput back-calculated from published token
 benchmarks** — never spec sheets, and never streaming rooflines, which are roughly twice what MoE
 decode converts. Against 16 published measurements the model has a leave-one-out median error of
-**5.6%**, worst case **46%**.
+**5.6%**, worst case **34%**.
 
 Both numbers are measured under strict leave-one-out, which an earlier harness was not doing: it
 cleared the calibration cache but left the held-out measurement in place, so `calc()` returned the
 measurement itself for the pair under test and reported a flattering 34% tail. The median barely
 moved when that was fixed (5.3% → 5.9%); the tail did. Treat the median as the useful figure and the
 tail as a warning that a small coarse-MoE model on a small card can be badly under-predicted.
+
+### Architecture-aware memory
+
+Two things in a model file do not cost what their size suggests, and both are modelled per model:
+
+- **KV cache from each model's own config.** Only full-attention layers grow a cache with the
+  context. Sliding-window layers stop at their window (Gemma 4, gpt-oss, MiMo, Step, Inkling,
+  Beam, Muse, Command A+, K-EXAONE); Gated DeltaNet, Kimi Delta Attention and Mamba layers keep a
+  fixed state (Qwen3.5 onward, Kimi K3, Ling 3.1, GLM-5.3 Flash, Nemotron 3); MLA stores a
+  compressed latent rather than per-head keys and values (DeepSeek V3.2, Kimi K2, Mistral Large 3
+  and Small 4, GLM-5, Hy4, A.X-K2), and sparse-attention indexers add their own key. The result
+  spans 0.9 KB a token (DeepSeek V4.1 Flash) to 188 KB (GLM-4.7) at a Q8 cache. Every model had
+  been sized as a plain full-attention transformer from its parameter count, which was off by up
+  to 25x; correcting it cut the leave-one-out 90th-percentile error from 34% to 11% and the worst
+  case from 46% to 34%.
+- **Lookup tables.** Qwen3.8-Flash-Next is a 125B-A6B model plus a separate 51B n-gram embedding
+  table, and DeepSeek V4.1 Flash a 552B backbone plus 196B of "Engram" memory. A token indexes a
+  few rows of either, so the table can stay memory-mapped on SSD and only the model proper has to
+  sit in VRAM + RAM. NVIDIA's serving recipe for Flash-Next keeps the table in host RAM instead,
+  which is faster when RAM is spare.
+
+Reading the configs also corrected Kimi K3 to 104B active (from 50B), which halves its modelled
+decode speed.
 
 ### Residency is split in two
 

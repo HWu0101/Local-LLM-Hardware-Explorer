@@ -905,8 +905,8 @@
           benchmarked on any machine, that correction is carried across to the machines it has not been
           benchmarked on — otherwise a measured machine and a modelled one are not comparable and an upgrade
           looks better or worse purely by which one happens to have a benchmark. Scored leave-one-out
-          (each measurement predicted without itself): <b>median error 6%, 90th percentile 34%</b>, worst 46%.
-          Treat modelled values as ±35%.</p>
+          (each measurement predicted without itself): <b>median error 6%, 90th percentile 11%</b>, worst 34%.
+          Treat modelled values as ±30%.</p>
       </div>
       <div class="note">
         <p><b>Params stopped predicting quality.</b> Dense Qwen3.8-27B rates 1590 on Arena WebDev, ahead of every model here under 170B, and Gemma 4 31B (1452 on Arena text) beats Mistral Large 3 675B (1414) at 1/22nd the size. Never buy capacity for a number of parameters &mdash; buy it for a specific model you have benchmarked.</p>
@@ -1664,7 +1664,28 @@
       if (t <= 400) return 124;
       return 230;
     }
-    const kvGB = m => kvKB(m) * CTX / 1e6;
+    // Per-model KV, from each model's own config.json (read 28 Oct 2026), at a Q8
+    // cache -- one byte per element -- in KB (1000 B) per token:
+    //   kvF  bytes cached for EVERY token: the full-attention layers only. Gated
+    //        DeltaNet, KDA, Mamba and other linear layers keep a fixed-size state
+    //        instead, small enough to sit inside the 1 GB buffer added in calc().
+    //        MLA layers cache kv_lora_rank + rope dims, not heads x head_dim, and a
+    //        sparse-attention indexer adds its own key per token, which is counted.
+    //   kvS  bytes per token on sliding-window layers, which stop growing at swa.
+    // Sizing everything as a plain full-attention transformer, as kvKB() does, was
+    // off by up to 25x: Qwen3.5-122B caches 12 KB a token, not 72. kvKB() remains as
+    // the fallback for any model added without its config having been read.
+    // Gemma 4's global layers share K and V (attention_k_eq_v); both are counted,
+    // since a runtime that does not exploit the sharing still stores two copies.
+    const kvAt = (m, ctx) => m.kvF == null ? kvKB(m) * ctx / 1e6
+      : (m.kvF * ctx + (m.kvS || 0) * Math.min(ctx, m.swa || 0)) / 1e6;
+    const kvGB = m => kvAt(m, CTX);
+    // tbl = billions of parameters in a LOOKUP TABLE that sits outside the model
+    // proper (Qwen3.8-Flash-Next's n-gram embeddings, DeepSeek V4.1 Flash's Engram). A token reads a handful of
+    // rows from it, not the table, so llama.cpp can leave it memory-mapped on disk
+    // and it costs neither RAM nor bandwidth. total, gb and active all describe the
+    // model WITHOUT it; it is shown, never counted.
+    const tblNote = m => m.tbl ? ', with its ' + m.tbl + 'B lookup table left on SSD' : '';
     // Your rig is a list of cards for the same reason the custom build is: two
     // fields could not describe a four-card workstation, and plenty of people who
     // would use this page own one. Old saved configs carried gpu + spare; fold them
@@ -1959,104 +1980,104 @@
     // g = expert granularity: 'd' dense, 'c' coarse MoE (few large experts),
     //     'f' fine (128-256 experts), 'u' ultra-fine (512+). Drives GPU kernel efficiency.
     const M = [
-      { name: 'Gemma 4 E4B', total: 8, active: 4.5, gb: 4.6, g: 'd' },
-      { name: 'Gemma 4 12B QAT', total: 12, active: 12, gb: 6.66, g: 'd', meas: { d_5080_cur: 60 } },
+      { name: 'Gemma 4 E4B', total: 8, active: 4.5, gb: 4.6, g: 'd', kvF: 8.2, kvS: 20.5, swa: 512 },
+      { name: 'Gemma 4 12B QAT', total: 12, active: 12, gb: 6.66, g: 'd', meas: { d_5080_cur: 60 }, kvF: 8.2, kvS: 163.8, swa: 1024 },
       {
-        name: 'gpt-oss-20b', total: 21, active: 3.6, gb: 12, g: 'c', elo: 1317, meas: { d_5080_cur: 205, spark: 83.4, mac: 115.5, d_pro6000_cur: 287, d_5090_cur: 419 }
+        name: 'gpt-oss-20b', total: 21, active: 3.6, gb: 12, g: 'c', elo: 1317, meas: { d_5080_cur: 205, spark: 83.4, mac: 115.5, d_pro6000_cur: 287, d_5090_cur: 419 }, kvF: 12.3, kvS: 12.3, swa: 128
       },
-      { name: 'Gemma 4 26B-A4B', total: 25.2, active: 3.8, gb: 14.56, g: 'f', elo: 1437, wd: 1359 },
+      { name: 'Gemma 4 26B-A4B', total: 25.2, active: 3.8, gb: 14.56, g: 'f', elo: 1437, wd: 1359, kvF: 10.2, kvS: 102.4, swa: 1024 },
       {
         name: 'Qwen3.8-27B dense', total: 27, active: 27, gb: 16.1, g: 'd', elo: 1437, wd: 1590, ag: -0.041,
-        meas: { m5ultra: 44.9, spark: 11.4 }, est: 1
+        meas: { m5ultra: 44.9, spark: 11.4 }, kvF: 32.8, est: 1
       },
-      { name: 'Qwen3.5-27B dense', total: 27.8, active: 27.8, gb: 16.1, g: 'd', elo: 1409, wd: 1359 },
-      { name: 'Qwen3.6-27B dense', total: 27.8, active: 27.8, gb: 16.1, g: 'd', eloP: 1408, wdP: 1357 },
-      { name: 'GLM-4.7-Flash', total: 30, active: 3.5, gb: 17.4, g: 'f', elo: 1365 },
-      { name: 'Granite 4.2 30B dense', total: 30, active: 30, gb: 17.4, g: 'd', elo: 1340, est: 1 },
-      { name: 'Muse Glimmer', total: 30, active: 30, gb: 17.4, g: 'd', elo: 1425, wd: 1355, est: 1 },
-      { name: 'Gemma 4 31B dense', total: 30.7, active: 30.7, gb: 17.8, g: 'd', elo: 1452, wd: 1369 },
-      { name: 'Nemotron 3 Nano 30B-A3B', total: 31.6, active: 3.2, gb: 18.3, g: 'f', elo: 1314, est: 1 },
-      { name: 'Nemotron 3.5 Lightning', total: 31.6, active: 3.6, gb: 18.3, g: 'f', elo: 1353, est: 1 },
+      { name: 'Qwen3.5-27B dense', total: 27.8, active: 27.8, gb: 16.1, g: 'd', elo: 1409, wd: 1359, kvF: 32.8 },
+      { name: 'Qwen3.6-27B dense', total: 27.8, active: 27.8, gb: 16.1, g: 'd', eloP: 1408, wdP: 1357, kvF: 32.8 },
+      { name: 'GLM-4.7-Flash', total: 30, active: 3.5, gb: 17.4, g: 'f', elo: 1365, kvF: 27.1 },
+      { name: 'Granite 4.2 30B dense', total: 30, active: 30, gb: 17.4, g: 'd', elo: 1340, kvF: 131.1, est: 1 },
+      { name: 'Muse Glimmer', total: 30, active: 30, gb: 17.4, g: 'd', elo: 1425, wd: 1355, kvF: 6.7, kvS: 20, swa: 2048, est: 1 },
+      { name: 'Gemma 4 31B dense', total: 30.7, active: 30.7, gb: 17.8, g: 'd', elo: 1452, wd: 1369, kvF: 41, kvS: 409.6, swa: 1024 },
+      { name: 'Nemotron 3 Nano 30B-A3B', total: 31.6, active: 3.2, gb: 18.3, g: 'f', elo: 1314, kvF: 3.1, est: 1 },
+      { name: 'Nemotron 3.5 Lightning', total: 31.6, active: 3.6, gb: 18.3, g: 'f', elo: 1353, kvF: 3.1, est: 1 },
       {
-        name: 'Qwen3.5 35B-A3B', total: 36, active: 3, gb: 20.6, g: 'f', elo: 1394, meas: { d_5090_cur: 194 }, wd: 1254
+        name: 'Qwen3.5 35B-A3B', total: 36, active: 3, gb: 20.6, g: 'f', elo: 1394, meas: { d_5090_cur: 194 }, wd: 1254, kvF: 10.2
       },
-      { name: 'Qwen3.6 35B-A3B', total: 36, active: 3, gb: 20.6, g: 'f', eloP: 1395, wdP: 1250 },
-      { name: 'Nemotron 3.5 Bolt 74B-A9B', total: 74, active: 9, gb: 42.9, g: 'f', est: 1 },
+      { name: 'Qwen3.6 35B-A3B', total: 36, active: 3, gb: 20.6, g: 'f', eloP: 1395, wdP: 1250, kvF: 10.2 },
+      { name: 'Nemotron 3.5 Bolt 74B-A9B', total: 74, active: 9, gb: 42.9, g: 'f', kvF: 4.1, est: 1 },
       {
-        name: 'Qwen3 Next 80B-A3B', total: 80, active: 3, gb: 46.4, g: 'u', elo: 1399, meas: { halo: 42.7, d_pro6000_cur: 124 }
-      },
-      {
-        name: 'GLM-4.5-Air', total: 106, active: 12, gb: 61.5, g: 'f', elo: 1373, meas: { halo: 22.6, spark: 22.6 }
+        name: 'Qwen3 Next 80B-A3B', total: 80, active: 3, gb: 46.4, g: 'u', elo: 1399, meas: { halo: 42.7, d_pro6000_cur: 124 }, kvF: 12.3
       },
       {
-        name: 'gpt-oss-120b', total: 117, active: 5.1, gb: 63.4, g: 'c', elo: 1352, meas: { halo: 55.6, spark: 58.7, mac: 70.8, d_pro6000_cur: 196 }
-      },
-      { name: 'Mistral Small 4', total: 119, active: 6.5, gb: 69, g: 'f' },
-      {
-        name: 'Nemotron 3 Super', total: 120, active: 12, gb: 69.6, g: 'f', elo: 1360, meas: { halo: 18.4, spark: 19.9 }
-      },
-      { name: 'Nemotron 3.5 Super VL', total: 120, active: 12, gb: 69.6, g: 'f', elo: 1413, wd: 1399, ag: -0.136, est: 1 },
-      {
-        name: 'Qwen3.5 122B-A10B', total: 125, active: 10, gb: 71.22, g: 'f', elo: 1417, meas: { d_5080_cur: 21.4, d_pro6000_cur: 100.6 }, wd: 1360
+        name: 'GLM-4.5-Air', total: 106, active: 12, gb: 61.5, g: 'f', elo: 1373, meas: { halo: 22.6, spark: 22.6 }, kvF: 94.2
       },
       {
-        name: 'Mistral Medium 3.5', total: 128, active: 128, gb: 74.2, g: 'd', elo: 1426, wd: 1264, ag: -0.121, est: 1
+        name: 'gpt-oss-120b', total: 117, active: 5.1, gb: 63.4, g: 'c', elo: 1352, meas: { halo: 55.6, spark: 58.7, mac: 70.8, d_pro6000_cur: 196 }, kvF: 18.4, kvS: 18.4, swa: 128
       },
-      { name: 'Qwen3.8-Flash-Next', total: 176, active: 6, gb: 102, g: 'f', wd: 1628, ag: -0.033, est: 1 },
-      { name: 'Step 3.7 Flash', total: 198, active: 11, gb: 115, g: 'f', est: 1 },
-      { name: 'Command A+', total: 218, active: 25, gb: 126.4, g: 'f', est: 1 },
-      { name: 'Laguna M.1', total: 225, active: 23, gb: 131, g: 'f', wd: 1349, est: 1 },
-      { name: 'MiniMax-M2.7', total: 230, active: 10, gb: 133, g: 'f', elo: 1415, wd: 1398 },
-      { name: 'Qwen3-235B-A22B', total: 235, active: 22, gb: 136, g: 'f', elo: 1375 },
-      { name: 'Inkling-Small', total: 276, active: 12, gb: 160, g: 'f', elo: 1405, wd: 1409, ag: -0.161, est: 1 },
+      { name: 'Mistral Small 4', total: 119, active: 6.5, gb: 69, g: 'f', kvF: 11.5 },
       {
-        name: 'DeepSeek V4 Flash', total: 284, active: 13, gb: 165, g: 'f', elo: 1436, wd: 1582
+        name: 'Nemotron 3 Super', total: 120, active: 12, gb: 69.6, g: 'f', elo: 1360, meas: { halo: 18.4, spark: 19.9 }, kvF: 4.1
+      },
+      { name: 'Nemotron 3.5 Super VL', total: 120, active: 12, gb: 69.6, g: 'f', elo: 1413, wd: 1399, ag: -0.136, kvF: 4.1, est: 1 },
+      {
+        name: 'Qwen3.5 122B-A10B', total: 125, active: 10, gb: 71.22, g: 'f', elo: 1417, meas: { d_5080_cur: 21.4, d_pro6000_cur: 100.6 }, wd: 1360, kvF: 12.3
       },
       {
-        name: 'Hunyuan Hy3', total: 295, active: 21, gb: 171, g: 'f', elo: 1454, wd: 1506, ag: -0.068, est: 1
+        name: 'Mistral Medium 3.5', total: 128, active: 128, gb: 74.2, g: 'd', elo: 1426, wd: 1264, ag: -0.121, kvF: 180.2, est: 1
       },
-      { name: 'MiMo-V2.5', total: 310, active: 15, gb: 180, g: 'f', elo: 1434, wd: 1438, est: 1 },
-      { name: 'MiMo-V2.6-Flash', total: 309, active: 15, gb: 179, g: 'f', elo: 1448, wd: 1638, ag: 0.021, est: 1 },
+      { name: 'Qwen3.8-Flash-Next', total: 125, active: 6, gb: 72.5, tbl: 51, g: 'f', wd: 1628, ag: -0.033, kvF: 13.8, est: 1 },
+      { name: 'Step 3.7 Flash', total: 198, active: 11, gb: 115, g: 'f', kvF: 24.6, kvS: 67.6, swa: 512, est: 1 },
+      { name: 'Command A+', total: 218, active: 25, gb: 126.4, g: 'f', kvF: 16.4, kvS: 49.2, swa: 4096, est: 1 },
+      { name: 'Laguna M.1', total: 225, active: 23, gb: 131, g: 'f', wd: 1349, kvF: 143.4, est: 1 },
+      { name: 'MiniMax-M2.7', total: 230, active: 10, gb: 133, g: 'f', elo: 1415, wd: 1398, kvF: 127 },
+      { name: 'Qwen3-235B-A22B', total: 235, active: 22, gb: 136, g: 'f', elo: 1375, kvF: 96.3 },
+      { name: 'Inkling-Small', total: 276, active: 12, gb: 160, g: 'f', elo: 1405, wd: 1409, ag: -0.161, kvF: 14.3, kvS: 71.7, swa: 512, est: 1 },
       {
-        name: 'GLM-5.3 Flash', total: 320, active: 18, gb: 178, g: 'f', elo: 1476, wd: 1607, ag: -0.018, est: 1
-      },
-      { name: 'GLM-4.7', total: 355, active: 32, gb: 197, g: 'f', elo: 1441, wd: 1435, est: 1 },
-      { name: 'K2 Horizon 375B-A23B', total: 375, active: 23, gb: 218, g: 'f', est: 1 },
-      { name: 'Qwen3.5-397B-A17B', total: 397, active: 17, gb: 230, g: 'f', elo: 1442, wd: 1400 },
-      { name: 'MiniMax-M3', total: 428, active: 23, gb: 248, g: 'f', elo: 1440, wd: 1483, ag: -0.101 },
-      { name: 'MiniMax-M3.1-Flash', total: 428, active: 23, gb: 248, g: 'f', wd: 1581, est: 1 },
-      { name: 'Qwen3-Coder 480B-A35B', total: 480, active: 35, gb: 278, g: 'f', elo: 1388, wd: 1275, est: 1 },
-      { name: 'Beam 1.0 501B-A23B', total: 501, active: 23, gb: 291, g: 'f', elo: 1436, wd: 1436, ag: -0.03, est: 1 },
-      { name: 'Nemotron 3 Ultra', total: 550, active: 55, gb: 319, g: 'f', ag: -0.147, elo: 1426 },
-      {
-        name: 'DeepSeek V4.1 Flash', total: 552, active: 16, gb: 321, g: 'f', elo: 1476, wd: 1666, ag: 0.023, est: 1
-      },
-      { name: 'Ling 3.1 Flash', total: 560, active: 25, gb: 325, g: 'f', est: 1 },
-      { name: 'Step 5 Preview', total: 600, active: 27, gb: 348, g: 'f', elo: 1448, wd: 1570, ag: -0.02, est: 1 },
-      { name: 'Mistral Large 3', total: 675, active: 41, gb: 392, g: 'f', elo: 1414, wd: 1232, est: 1 },
-      { name: 'DeepSeek V3.2', total: 685, active: 37, gb: 397, g: 'f', elo: 1425, wd: 1326 },
-      { name: 'A.X-K2', total: 692, active: 33, gb: 401, g: 'f', est: 1 },
-      { name: 'GLM-5', total: 744, active: 40, gb: 413, g: 'f', elo: 1457, wd: 1436, est: 1 },
-      { name: 'GLM-5.1', total: 744, active: 40, gb: 413, g: 'f', elo: 1465, wd: 1508, est: 1 },
-      {
-        name: 'GLM-5.2', total: 744, active: 40, gb: 413, g: 'f', elo: 1475, meas: { mac512: 14.5 }, wd: 1606, ag: 0.017
-      },
-      { name: 'GLM-5.3', total: 744, active: 40, gb: 413, g: 'f', elo: 1481, wd: 1623, ag: 0.012, est: 1 },
-      { name: 'K-EXAONE 2.0', total: 750, active: 37, gb: 435, g: 'f', est: 1 },
-      { name: 'Hy4 preview', total: 770, active: 49, gb: 447, g: 'f', wd: 1631, ag: 0.02, est: 1 },
-      { name: 'Muse Spark Open', total: 816, active: 42, gb: 473, g: 'f', wd: 1526, est: 1 },
-      { name: 'Inkling', total: 975, active: 41, gb: 566, g: 'f', elo: 1442, wd: 1415, ag: -0.149, est: 1 },
-      { name: 'Kimi K2.6', total: 1000, active: 32, gb: 580, g: 'f', elo: 1461, wd: 1509 },
-      { name: 'Kimi K2.7 Code', total: 1000, active: 32, gb: 580, g: 'f', wd: 1474 },
-      {
-        name: 'MiMo-V2.5-Pro', total: 1020, active: 42, gb: 592, g: 'f', elo: 1466, wd: 1480, ag: -0.087, est: 1
-      },
-      { name: 'MiMo-V2.6-Pro', total: 1020, active: 42, gb: 592, g: 'f', elo: 1480, wd: 1625, ag: 0.033, est: 1 },
-      {
-        name: 'DeepSeek V4 Pro', total: 1600, active: 49, gb: 928, g: 'f', elo: 1465, wd: 1582, ag: -0.003
+        name: 'DeepSeek V4 Flash', total: 284, active: 13, gb: 165, g: 'f', elo: 1436, wd: 1582, kvF: 3.5
       },
       {
-        name: 'Kimi K3', total: 2800, active: 50, gb: 1400, g: 'f', elo: 1487, wd: 1656, ag: 0.016, est: 1
+        name: 'Hunyuan Hy3', total: 295, active: 21, gb: 171, g: 'f', elo: 1454, wd: 1506, ag: -0.068, kvF: 163.8, est: 1
+      },
+      { name: 'MiMo-V2.5', total: 310, active: 15, gb: 180, g: 'f', elo: 1434, wd: 1438, kvF: 11.5, kvS: 99.8, swa: 128, est: 1 },
+      { name: 'MiMo-V2.6-Flash', total: 309, active: 15, gb: 179, g: 'f', elo: 1448, wd: 1638, ag: 0.021, kvF: 11.5, kvS: 99.8, swa: 128, est: 1 },
+      {
+        name: 'GLM-5.3 Flash', total: 320, active: 18, gb: 178, g: 'f', elo: 1476, wd: 1607, ag: -0.018, kvF: 7, est: 1
+      },
+      { name: 'GLM-4.7', total: 355, active: 32, gb: 197, g: 'f', elo: 1441, wd: 1435, kvF: 188.4, est: 1 },
+      { name: 'K2 Horizon 375B-A23B', total: 375, active: 23, gb: 218, g: 'f', kvF: 124.9, est: 1 },
+      { name: 'Qwen3.5-397B-A17B', total: 397, active: 17, gb: 230, g: 'f', elo: 1442, wd: 1400, kvF: 15.4 },
+      { name: 'MiniMax-M3', total: 428, active: 23, gb: 248, g: 'f', elo: 1440, wd: 1483, ag: -0.101, kvF: 68.7 },
+      { name: 'MiniMax-M3.1-Flash', total: 428, active: 23, gb: 248, g: 'f', wd: 1581, kvF: 69.1, est: 1 },
+      { name: 'Qwen3-Coder 480B-A35B', total: 480, active: 35, gb: 278, g: 'f', elo: 1388, wd: 1275, kvF: 127, est: 1 },
+      { name: 'Beam 1.0 501B-A23B', total: 501, active: 23, gb: 291, g: 'f', elo: 1436, wd: 1436, ag: -0.03, kvF: 18.4, kvS: 88.1, swa: 512, est: 1 },
+      { name: 'Nemotron 3 Ultra', total: 550, active: 55, gb: 319, g: 'f', ag: -0.147, elo: 1426, kvF: 6.1 },
+      {
+        name: 'DeepSeek V4.1 Flash', total: 552, active: 16, gb: 321, tbl: 196, g: 'f', elo: 1476, wd: 1666, ag: 0.023, kvF: 0.9, est: 1
+      },
+      { name: 'Ling 3.1 Flash', total: 560, active: 25, gb: 325, g: 'f', kvF: 5.2, est: 1 },
+      { name: 'Step 5 Preview', total: 600, active: 27, gb: 348, g: 'f', elo: 1448, wd: 1570, ag: -0.02, kvF: 41.2, kvS: 106, swa: 512, est: 1 },
+      { name: 'Mistral Large 3', total: 675, active: 41, gb: 392, g: 'f', elo: 1414, wd: 1232, kvF: 35.1, est: 1 },
+      { name: 'DeepSeek V3.2', total: 685, active: 37, gb: 397, g: 'f', elo: 1425, wd: 1326, kvF: 42.9 },
+      { name: 'A.X-K2', total: 692, active: 33, gb: 401, g: 'f', kvF: 42.9, est: 1 },
+      { name: 'GLM-5', total: 744, active: 40, gb: 413, g: 'f', elo: 1457, wd: 1436, kvF: 54.9, est: 1 },
+      { name: 'GLM-5.1', total: 744, active: 40, gb: 413, g: 'f', elo: 1465, wd: 1508, kvF: 54.9, est: 1 },
+      {
+        name: 'GLM-5.2', total: 744, active: 40, gb: 413, g: 'f', elo: 1475, meas: { mac512: 14.5 }, wd: 1606, ag: 0.017, kvF: 47.6
+      },
+      { name: 'GLM-5.3', total: 744, active: 40, gb: 413, g: 'f', elo: 1481, wd: 1623, ag: 0.012, kvF: 47.6, est: 1 },
+      { name: 'K-EXAONE 2.0', total: 750, active: 37, gb: 435, g: 'f', kvF: 41, kvS: 116.7, swa: 128, est: 1 },
+      { name: 'Hy4 preview', total: 770, active: 49, gb: 447, g: 'f', wd: 1631, ag: 0.02, kvF: 47.6, est: 1 },
+      { name: 'Muse Spark Open', total: 816, active: 42, gb: 473, g: 'f', wd: 1526, kvF: 32.8, kvS: 94.2, swa: 2048, est: 1 },
+      { name: 'Inkling', total: 975, active: 41, gb: 566, g: 'f', elo: 1442, wd: 1415, ag: -0.149, kvF: 22.5, kvS: 225.3, swa: 512, est: 1 },
+      { name: 'Kimi K2.6', total: 1000, active: 32, gb: 580, g: 'f', elo: 1461, wd: 1509, kvF: 35.1 },
+      { name: 'Kimi K2.7 Code', total: 1000, active: 32, gb: 580, g: 'f', wd: 1474, kvF: 35.1 },
+      {
+        name: 'MiMo-V2.5-Pro', total: 1020, active: 42, gb: 592, g: 'f', elo: 1466, wd: 1480, ag: -0.087, kvF: 25.6, kvS: 153.6, swa: 128, est: 1
+      },
+      { name: 'MiMo-V2.6-Pro', total: 1020, active: 42, gb: 592, g: 'f', elo: 1480, wd: 1625, ag: 0.033, kvF: 25.6, kvS: 153.6, swa: 128, est: 1 },
+      {
+        name: 'DeepSeek V4 Pro', total: 1600, active: 49, gb: 928, g: 'f', elo: 1465, wd: 1582, ag: -0.003, kvF: 4.3
+      },
+      {
+        name: 'Kimi K3', total: 2800, active: 104, gb: 1400, g: 'f', elo: 1487, wd: 1656, ag: 0.016, kvF: 13.8, est: 1
       }
     ];
 
@@ -2296,7 +2317,7 @@
       // context by the ratio of modelled times rather than reprinted verbatim --
       // otherwise a 12B that no longer fits on the card at 128k still reports the
       // speed it had when it did fit.
-      const tBench = time(resid(kvKB(m) * BENCH_CTX / 1e6 + 1));
+      const tBench = time(resid(kvAt(m, BENCH_CTX) + 1));
       const tps = measured ? m.meas[hw.id] * (tBench / t) : (1 / t) * calib(m);
 
       const fit = fRouted >= 0.95 ? 'fit' : (fRouted >= 0.15 ? 'part' : 'cpu');
@@ -2900,7 +2921,7 @@
         g.onclick = () => { sel = nm; draw(); detail(); drawPath() };
         g.onmousemove = e => {
           const m = M.find(x => x.name === nm), r = calc(m, HW.find(h => h.id === cur));
-          tip.innerHTML = `<b>${m.name}</b>${m.total}B total · ${m.active}B active · ${m.gb} GB<br>
+          tip.innerHTML = `<b>${m.name}</b>${m.total}B${m.tbl ? ' + ' + m.tbl + 'B table' : ''} total · ${m.active}B active · ${m.gb} GB<br>
         ${tipScore(m)}<br>
         ${r.fit === 'none' ? '<span style="color:var(--none)">will not load</span>' :
               `<b style="display:inline">${r.tps.toFixed(1)} tok/s</b> · ${(r.f * 100).toFixed(0)}% in VRAM
@@ -3253,7 +3274,7 @@
       if (r.fit === 'none') {
         const raw = hw.unified ? hw.vram : hw.vram + hw.ram;
         $('detail').innerHTML = `<p class="ph">${m.name} on ${hw.name} — will not load</p>
-      <p class="pm">Needs ${m.gb} GB at Q4 plus ~1.5 GB of KV cache. This machine has
+      <p class="pm">Needs ${m.gb} GB at Q4 plus ~${kvGB(m).toFixed(1)} GB of KV cache at ${(CTXS.find(c => c.k === CTX) || {}).n}${tblNote(m)}. This machine has
         ${raw} GB nameplate, about <b>${r.pool.toFixed(0)} GB usable</b> once the OS,
         desktop and runtime take their share.</p>
       <p class="note">Capacity gates before speed matters. No amount of bandwidth or GPU choice
@@ -3264,7 +3285,7 @@
       }
       const [a, b, c] = r.share;
       $('detail').innerHTML = `<p class="ph">${m.name} on ${hw.name}</p>
-    <p class="pm">${m.total}B total · ${m.active}B active · ${m.gb} GB at Q4 ·
+    <p class="pm">${m.total}B total${m.tbl ? ' + a ' + m.tbl + 'B lookup table kept on SSD, not counted' : ''} · ${m.active}B active · ${m.gb} GB at Q4 ·
       reads ~${r.bytes.toFixed(2)} GB per token ·
       KV cache ~${kvGB(m).toFixed(1)} GB at ${(CTXS.find(c => c.k === CTX) || {}).n} · ${r.measured ? 'speed is a published measurement, taken at short context' : 'speed is modelled'}</p>
     <p class="pm" style="margin:14px 0 5px">Where each token’s
@@ -3448,7 +3469,12 @@ while leaving decode flat.</p>
 <p><b>Known model limits.</b> Batch 1 throughout. Published decode benchmarks are short-context,
 so each one is anchored at 8k and carried to the selected context by the model; real decode falls
 steeply with context — gpt-oss-120b drops 34% from 0 to 32k, DeepSeek-V3 671B drops 73% by 16k — and
-the long-context figures are the least certain ones here. Batching recovers much of the MoE dispatch loss (gpt-oss-120b on M2 Ultra:
+the long-context figures are the least certain ones here. The KV cache is sized per model from
+its own config file: only full-attention layers grow with the context, sliding-window layers stop
+at their window, linear-attention and Mamba layers keep a fixed state, and MLA stores a compressed
+latent. That spans 0.9 KB a token (DeepSeek V4.1 Flash) to 188 KB (GLM-4.7) at a Q8 cache. Lookup
+tables a token only indexes into &mdash; Qwen3.8-Flash-Next&rsquo;s 51B n-gram table, DeepSeek V4.1
+Flash&rsquo;s 196B Engram &mdash; are left on SSD rather than counted against memory. Batching recovers much of the MoE dispatch loss (gpt-oss-120b on M2 Ultra:
 79 → 147 t/s from batch 1 to 4), so a serving workload looks very different from this chart.
 <b>Q4 only</b> — a model that does not fit at ~4 bpw is shown as unloadable rather than silently
 dropped to Q3/Q2, since that quality loss usually outweighs the speed. Capacity is checked against
@@ -3468,7 +3494,7 @@ the isolated effect of turning those kernels on (build b8966 → b8967, same fil
 <b>prefill +43–68%, decode 73.7 → 73.6 t/s — no change at all</b>. That is the expected result:
 decode is memory- and dispatch-bound, so a faster multiply buys nothing. The only decode lever a
 format offers is <i>size</i>, and NVFP4 vs Q4_K_M is about 7% fewer bytes — well inside this
-model's ±35% error, which is why adding the dimension would imply precision that does not exist.
+model's ±30% error, which is why adding the dimension would imply precision that does not exist.
 Going the other way, vLLM with NVFP4 still <i>loses</i> single-user decode to Q4_K_M GGUF by
 24–30% on the same Blackwell card; it wins on concurrency and TTFT, not on one stream. And NVFP4
 cannot be combined with CPU offload at all on consumer Blackwell — vLLM issue #38718 (garbage MoE
